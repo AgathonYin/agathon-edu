@@ -5,7 +5,7 @@
 - Ubuntu 22.04/24.04
 - 2C4G 可测试，4C8G 推荐
 - Docker + Docker Compose
-- 开放端口：80、443、8080（测试用）
+- 开放端口：80、443
 
 ## 首次部署
 
@@ -44,7 +44,7 @@ curl http://127.0.0.1:8080/api/teacher/summary
 生产建议把公网 80/443 指向一层宿主机 Nginx，再反代到：
 
 ```text
-http://127.0.0.1:8080
+http://127.0.0.1
 ```
 
 Nginx server block 示例：
@@ -55,7 +55,7 @@ server {
   server_name agathon-edu.com www.agathon-edu.com;
 
   location / {
-    proxy_pass http://127.0.0.1:8080;
+    proxy_pass http://127.0.0.1;
     proxy_set_header Host $host;
     proxy_set_header X-Real-IP $remote_addr;
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;

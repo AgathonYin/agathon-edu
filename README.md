@@ -71,7 +71,7 @@ docker compose up -d --build
 访问：
 
 ```text
-http://服务器IP:8080/
+http://服务器IP/
 ```
 
 使用 DeepSeek：
