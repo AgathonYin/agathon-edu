@@ -45,22 +45,22 @@ export type FeaturePage = {
 }
 
 export const weeks: CourseWeek[] = [
-  { id: 1, module: '一·导论', mode: '讲授与实操', title: '翻译本质界定', summary: '翻译的本质界定；语料库建设设计', status: 'planned' },
-  { id: 2, module: '二·社交与致辞', mode: '讲授与实操', title: '致辞与敬语层级', summary: '受众身份决定语体与敬语层级', route: 'speech', status: 'ready' },
-  { id: 3, module: '三·网络与游戏', mode: '讲授与实操', title: '游戏本地化流程', summary: '游戏本地化完整流程：翻译、润色、测试', route: 'game', status: 'ready' },
-  { id: 4, module: '三·网络与游戏', mode: '点评与补充', title: 'UI 空间与字符控制', summary: 'UI空间限制与极限缩减技巧', status: 'planned' },
-  { id: 5, module: '四·广告与营销', mode: '讲授与实操', title: '广告语言特征', summary: 'SEO搜索词的跨文化重构', route: 'ad', status: 'ready' },
-  { id: 6, module: '四·广告与营销', mode: '点评与补充', title: '电商标题重构', summary: '商品标题的信息密度重构', route: 'week6', status: 'ready' },
-  { id: 7, module: '五·旅游外宣', mode: '讲授与实操', title: '旅游文体交际属性', summary: '推介语与说明语的转换', status: 'planned' },
-  { id: 8, module: '五·旅游外宣', mode: '点评与补充', title: '景物描写差异', summary: '中文主观视角与日文客观视角', status: 'planned' },
-  { id: 9, module: '六·新闻报道', mode: '讲授与实操', title: '新闻5W1H结构差异', summary: '新闻信息结构与逆金字塔原则', status: 'planned' },
-  { id: 10, module: '六·新闻报道', mode: '点评与考核', title: '新闻作业点评', summary: '共性错误总结与期中考核说明', status: 'planned' },
-  { id: 11, module: '七·科技产品', mode: '讲授与实操', title: '技术文档规范', summary: '技术文档与说明书的规制规范', route: 'tech', status: 'ready' },
-  { id: 12, module: '七·科技产品', mode: '点评与补充', title: 'MTPE流程与质量', summary: '机器翻译后编辑与质量评估标准', route: 'week12', status: 'ready' },
-  { id: 13, module: '八·商务信函', mode: '讲授与实操', title: '商务文书的翻译', summary: '中文业务信息如何转换为日语商务文书体裁', route: 'week13', status: 'ready' },
-  { id: 14, module: '八·商务信函', mode: '点评与补充', title: '拒绝与致歉信函', summary: '社交距离控制与缓冲表达', status: 'planned' },
-  { id: 15, module: '九·法规合同', mode: '讲授与实操', title: '涉外商业契约翻译（二）', summary: '防御性表述与逻辑层级', route: 'week15', status: 'ready' },
-  { id: 16, module: '九·法规合同', mode: '点评与总结', title: '全学期能力回顾', summary: '合同翻译作业点评与综合总结', status: 'planned' },
+  { id: 1, module: '一·翻译导论', mode: '讲授与AI学习法', title: '翻译本质、理论谱系与课程方法', summary: '依据“序論/概论”讲义，建立翻译定义、信达雅、等值、译者素养与AI辅助学习流程；同步说明语料库、术语表和学习档案的使用方式。', status: 'planned' },
+  { id: 2, module: '二·语言差异与致辞', mode: '对比讲授与语用实操', title: '日汉结构差异与致辞语体', summary: '从日汉语序、助词、词尾变化、敬谦表达入手，训练致辞类文本中“谁在什么场合对谁说”的语体判断和译后编辑。', route: 'speech', status: 'ready' },
+  { id: 3, module: '三·汉字词与本地化', mode: '概念辨析与项目流程', title: '汉字词陷阱与游戏本地化流程', summary: '结合汉字词讲义和游戏本地化教案，比较同形词、近义词和语境义差异，建立翻译、润色、测试、术语表协作的项目流程。', route: 'game', status: 'ready' },
+  { id: 4, module: '四·增减与引申', mode: '句段重组训练', title: '增词、减词、引申与语境补足', summary: '围绕增词、减词、语义引申和信息显隐，训练把日语省略、含蓄与上下文关系转换成自然、明确的汉语表达。', status: 'planned' },
+  { id: 5, module: '五·转换与广告', mode: '表达转换与创译', title: '词类转换、正反表达与广告文案', summary: '把转换词语、正反表达和广告翻译合并训练：处理肯否视角、词性转换、キャッチフレーズ、品牌语气和中文广告日译。', route: 'ad', status: 'ready' },
+  { id: 6, module: '六·拟声拟态', mode: '语感识别与场景化表达', title: '拟声拟态词的语义、语气与翻译', summary: '聚焦ゴロゴロ、ダラダラ、ウロウロ等拟声拟态词，区分声音、状态、心理和动作节奏，训练汉语动词、副词和短句化处理。', route: 'week6', status: 'ready' },
+  { id: 7, module: '七·外来语与旅游', mode: '跨文化说明写作', title: '外来语处理与旅游外宣翻译', summary: '结合外来语翻译和観光翻訳讲义，比较音译、意译、保留和解释性翻译；训练公共标识、景点介绍和旅游推介语。', status: 'planned' },
+  { id: 8, module: '八·代词与视点', mode: '视点控制训练', title: '人称代词、指示词与叙述视点', summary: '围绕日语省略、人称显隐、こそあど体系和叙述视点，训练中文补足、日文省略、称谓选择和篇章连贯。', status: 'planned' },
+  { id: 9, module: '九·形式名词与新闻', mode: '结构分析与信息重编', title: '形式名词、可能态与新闻结构', summary: '以こと、もの、わけ、ため等形式名词和可能态练习为语法基础，衔接新闻翻译中的标题、5W1H、消息来源和信息顺序重编。', status: 'planned' },
+  { id: 10, module: '十·成语谚语', mode: '文化负载表达训练', title: '成语、谚语与ことわざ的翻译', summary: '处理成语、谚语、ことわざ和典故表达，比较直译、意译、替换、解释和保留文化异质性的边界。', status: 'planned' },
+  { id: 11, module: '十一·惯用语与技术', mode: '固定表达与术语管理', title: '惯用语、身体词汇与技术文章', summary: '结合惯用语讲义、身体词汇研究资料和技术文章翻译，训练固定搭配识别、术语一致性、说明书风格和专业文本可读性。', route: 'tech', status: 'ready' },
+  { id: 12, module: '十二·使役与MTPE', mode: '语法转换与质量评估', title: '使役句翻译与机器翻译后编辑', summary: '分析させる结构中的责任、许可、诱发和安排关系，并用MTPE标准检查术语、数字、否定、语体和逻辑遗漏。', route: 'week12', status: 'ready' },
+  { id: 13, module: '十三·被动与商务', mode: '语态转换与文书格式', title: '被动句翻译与商务文书', summary: '把直接/间接受身、受害感和主客体重排，迁移到商务邮件、通知、请求和致歉文书的格式、寒暄语和缓冲表达。', route: 'week13', status: 'ready' },
+  { id: 14, module: '十四·长句分析', mode: '复杂句拆解与重组', title: '长句、复句与逻辑层级', summary: '训练长句分析法、定语链拆解、插入成分处理、复句拆译和信息重排，为商务、法律和技术文本做综合准备。', status: 'planned' },
+  { id: 15, module: '十五·法律与招投标', mode: '高风险文本精读', title: '法律法规、招商与招投标文本', summary: '依据法律法規、招商招标讲义，处理法言法语、条件嵌套、权利义务、数字期间、みなす/推定する和招投标公告格式。', route: 'week15', status: 'ready' },
+  { id: 16, module: '十六·综合项目', mode: '作品集展示与教师评估', title: '课程复盘、项目展示与个性化补练', summary: '以讲义库、知识图谱、AI陪练记录和学生提交为依据，完成个人弱项复盘、综合翻译项目展示、徽章结算和教师数据化反馈。', status: 'planned' },
 ]
 
 export const knowledgePoints: KnowledgePoint[] = [

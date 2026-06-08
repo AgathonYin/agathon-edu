@@ -1070,6 +1070,19 @@ function MaterialsView({ setView, currentUser }: { setView: (view: View) => void
     }
   }
 
+  function materialDate(item: CourseMaterial) {
+    let metadata = item.metadata
+    if (typeof metadata === 'string') {
+      try {
+        metadata = JSON.parse(metadata) as Record<string, unknown>
+      } catch {
+        metadata = {}
+      }
+    }
+    const value = metadata?.modified_at_text
+    return typeof value === 'string' ? value.slice(0, 10) : '日期未记录'
+  }
+
   return (
     <Screen className="workspace-view">
       <BackButton setView={setView} />
@@ -1093,7 +1106,7 @@ function MaterialsView({ setView, currentUser }: { setView: (view: View) => void
           <div className="material-list">
             {visibleMaterials.map((item) => (
               <button className={active?.id === item.id ? 'active' : ''} key={item.id} onClick={() => selectMaterial(item)}>
-                <span>W{item.week ?? '--'} · {item.material_type.toUpperCase()}</span>
+                <span>W{item.week ?? '--'} · {item.material_type.toUpperCase()} · {materialDate(item)}</span>
                 <strong>{item.title}</strong>
                 <small>{item.summary || item.source_path}</small>
               </button>
@@ -1106,7 +1119,7 @@ function MaterialsView({ setView, currentUser }: { setView: (view: View) => void
             <>
               <span className="pill">{active.category} · 第 {active.week ?? '--'} 周</span>
               <h2>{active.title}</h2>
-              <p className="material-source">{active.source_path}</p>
+              <p className="material-source">{active.source_path} · 文件日期 {materialDate(active)}</p>
               <div className="callout">{active.summary}</div>
               <pre>{active.content}</pre>
             </>

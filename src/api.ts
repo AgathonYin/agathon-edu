@@ -137,7 +137,7 @@ export type CourseMaterial = {
   source_path: string
   summary?: string | null
   content?: string | null
-  metadata?: Record<string, unknown>
+  metadata?: Record<string, unknown> | string
   updated_at?: string
 }
 
@@ -327,7 +327,7 @@ export async function fetchMaterials(): Promise<CourseMaterial[]> {
   return response.json()
 }
 
-export async function importMaterials(payload: { materials: Omit<CourseMaterial, 'id' | 'updated_at'>[] }): Promise<{ ok: boolean; materials: number }> {
+export async function importMaterials(payload: { replace?: boolean; materials: Omit<CourseMaterial, 'id' | 'updated_at'>[] }): Promise<{ ok: boolean; materials: number }> {
   const response = await fetch(`${baseUrl}/api/materials/import`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },

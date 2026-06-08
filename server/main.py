@@ -115,6 +115,7 @@ class CourseMaterialPayload(BaseModel):
 
 class CourseMaterialsImportPayload(BaseModel):
     materials: list[CourseMaterialPayload]
+    replace: bool = False
 
 
 class LoginRequest(BaseModel):
@@ -555,6 +556,8 @@ async def import_materials(payload: CourseMaterialsImportPayload):
 
     async with db_pool.acquire() as conn:
         async with conn.transaction():
+            if payload.replace:
+                await conn.execute("delete from course_materials")
             for item in payload.materials:
                 await conn.execute(
                     """
@@ -892,7 +895,12 @@ def serialize_record(record: asyncpg.Record | None) -> dict[str, Any]:
         return {}
     data = dict(record)
     for key, value in data.items():
-        if isinstance(value, datetime):
+        if key == "metadata" and isinstance(value, str):
+            try:
+                data[key] = json.loads(value)
+            except json.JSONDecodeError:
+                data[key] = {}
+        elif isinstance(value, datetime):
             data[key] = value.isoformat()
         elif value is not None and not isinstance(value, (str, int, float, bool, list, dict)):
             data[key] = str(value)
