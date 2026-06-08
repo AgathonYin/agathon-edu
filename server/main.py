@@ -1,4 +1,5 @@
 import asyncio
+import json
 import os
 import uuid
 from datetime import datetime, timezone
@@ -41,6 +42,7 @@ class ExerciseResponse(BaseModel):
 
 class SubmissionCreateRequest(BaseModel):
     exercise_id: str | None = None
+    student_id: str | None = None
     student_name: str = "访客学生"
     answer: str
     source: str | None = None
@@ -100,6 +102,28 @@ class CourseContentPayload(BaseModel):
     knowledge_edges: list[KnowledgeEdgePayload] = []
 
 
+class LoginRequest(BaseModel):
+    email: str
+    name: str
+    class_name: str | None = None
+    role: Literal["student", "teacher"] = "student"
+
+
+class UserResponse(BaseModel):
+    id: str
+    email: str
+    name: str
+    role: str
+    class_name: str | None = None
+
+
+class LearningEventRequest(BaseModel):
+    user_id: str
+    event_type: Literal["login", "knowledge_view", "lesson_view", "ai_review", "submission"]
+    target_id: str | None = None
+    metadata: dict[str, Any] = {}
+
+
 app = FastAPI(title="Agathon Edu API")
 db_pool: asyncpg.Pool | None = None
 
@@ -157,6 +181,47 @@ MEMORY_EXERCISES: list[dict[str, Any]] = [
 MEMORY_SUBMISSIONS: list[dict[str, Any]] = []
 MEMORY_WEEKS: list[dict[str, Any]] = []
 MEMORY_EDGES: list[dict[str, Any]] = []
+MEMORY_USERS: list[dict[str, Any]] = []
+MEMORY_EVENTS: list[dict[str, Any]] = []
+MEMORY_USER_ACHIEVEMENTS: list[dict[str, Any]] = []
+
+ACHIEVEMENTS = [
+    {
+        "code": "first-login",
+        "title": "初次登录",
+        "description": "第一次进入学习中心并建立学习档案。",
+        "icon": "入",
+        "rule": "login >= 1",
+    },
+    {
+        "code": "graph-explorer",
+        "title": "图谱探索者",
+        "description": "查看 3 个不同知识点。",
+        "icon": "图",
+        "rule": "distinct knowledge_view target_id >= 3",
+    },
+    {
+        "code": "ai-practice",
+        "title": "AI 陪练启动",
+        "description": "完成第一次 AI 点评或练习生成。",
+        "icon": "AI",
+        "rule": "ai_review >= 1",
+    },
+    {
+        "code": "first-submission",
+        "title": "首份提交",
+        "description": "提交第一份练习作业。",
+        "icon": "交",
+        "rule": "submission >= 1",
+    },
+    {
+        "code": "steady-learner",
+        "title": "稳定学习者",
+        "description": "累计记录 8 次学习行为。",
+        "icon": "稳",
+        "rule": "events >= 8",
+    },
+]
 
 
 @app.on_event("startup")
@@ -219,8 +284,188 @@ async def ensure_schema() -> None:
         create index if not exists idx_course_weeks_status on course_weeks(status);
         create index if not exists idx_knowledge_edges_source on knowledge_edges(source_id);
         create index if not exists idx_knowledge_edges_target on knowledge_edges(target_id);
+
+        create table if not exists learning_events (
+          id uuid primary key default gen_random_uuid(),
+          user_id uuid not null references users(id) on delete cascade,
+          event_type text not null check (event_type in ('login', 'knowledge_view', 'lesson_view', 'ai_review', 'submission')),
+          target_id text,
+          metadata jsonb not null default '{}'::jsonb,
+          created_at timestamptz not null default now()
+        );
+
+        create table if not exists achievements (
+          code text primary key,
+          title text not null,
+          description text not null,
+          icon text not null,
+          rule text not null,
+          created_at timestamptz not null default now()
+        );
+
+        create table if not exists user_achievements (
+          user_id uuid not null references users(id) on delete cascade,
+          achievement_code text not null references achievements(code) on delete cascade,
+          awarded_at timestamptz not null default now(),
+          primary key (user_id, achievement_code)
+        );
+
+        create index if not exists idx_learning_events_user on learning_events(user_id);
+        create index if not exists idx_learning_events_type on learning_events(event_type);
         """
     )
+    for achievement in ACHIEVEMENTS:
+        await db_pool.execute(
+            """
+            insert into achievements (code, title, description, icon, rule)
+            values ($1, $2, $3, $4, $5)
+            on conflict (code) do update set
+              title = excluded.title,
+              description = excluded.description,
+              icon = excluded.icon,
+              rule = excluded.rule
+            """,
+            achievement["code"],
+            achievement["title"],
+            achievement["description"],
+            achievement["icon"],
+            achievement["rule"],
+        )
+
+
+@app.post("/api/auth/login", response_model=UserResponse)
+async def login(payload: LoginRequest):
+    email = payload.email.strip().lower()
+    if not db_pool:
+        existing = next((item for item in MEMORY_USERS if item["email"] == email), None)
+        user = existing or {"id": str(uuid.uuid4()), "email": email, "name": payload.name, "role": payload.role, "class_name": payload.class_name}
+        user.update({"name": payload.name, "role": payload.role, "class_name": payload.class_name})
+        replace_memory(MEMORY_USERS, user, "email")
+        await record_learning_event(LearningEventRequest(user_id=user["id"], event_type="login"))
+        return user
+
+    row = await db_pool.fetchrow(
+        """
+        insert into users (email, name, role, class_name)
+        values ($1, $2, $3, $4)
+        on conflict (email) do update set
+          name = excluded.name,
+          role = excluded.role,
+          class_name = excluded.class_name
+        returning id::text, email, name, role, class_name
+        """,
+        email,
+        payload.name.strip() or email,
+        payload.role,
+        payload.class_name,
+    )
+    user = serialize_record(row)
+    await record_learning_event(LearningEventRequest(user_id=user["id"], event_type="login"))
+    return user
+
+
+@app.post("/api/learning-events")
+async def record_learning_event(payload: LearningEventRequest):
+    if not db_pool:
+        MEMORY_EVENTS.append({**payload.model_dump(), "id": str(uuid.uuid4()), "created_at": now_iso()})
+        await award_achievements(payload.user_id)
+        return {"ok": True}
+
+    await db_pool.execute(
+        """
+        insert into learning_events (user_id, event_type, target_id, metadata)
+        values ($1::uuid, $2, $3, $4::jsonb)
+        """,
+        payload.user_id,
+        payload.event_type,
+        payload.target_id,
+        json.dumps(payload.metadata, ensure_ascii=False),
+    )
+    await award_achievements(payload.user_id)
+    return {"ok": True}
+
+
+@app.get("/api/students/{user_id}/dashboard")
+async def student_dashboard(user_id: str):
+    if not db_pool:
+        user_events = [item for item in MEMORY_EVENTS if item["user_id"] == user_id]
+        earned = [item for item in MEMORY_USER_ACHIEVEMENTS if item["user_id"] == user_id]
+        return memory_student_dashboard(user_events, earned)
+
+    stats = await db_pool.fetchrow(
+        """
+        select
+          count(*) as event_count,
+          count(*) filter (where event_type = 'knowledge_view') as knowledge_views,
+          count(distinct target_id) filter (where event_type = 'knowledge_view') as knowledge_count,
+          count(*) filter (where event_type = 'submission') as submissions,
+          count(*) filter (where event_type = 'ai_review') as ai_reviews
+        from learning_events
+        where user_id = $1::uuid
+        """,
+        user_id,
+    )
+    badges = await db_pool.fetch(
+        """
+        select a.code, a.title, a.description, a.icon, ua.awarded_at
+        from user_achievements ua
+        join achievements a on a.code = ua.achievement_code
+        where ua.user_id = $1::uuid
+        order by ua.awarded_at desc
+        """,
+        user_id,
+    )
+    recent = await db_pool.fetch(
+        """
+        select event_type, target_id, created_at
+        from learning_events
+        where user_id = $1::uuid
+        order by created_at desc
+        limit 8
+        """,
+        user_id,
+    )
+    return {
+        "stats": serialize_record(stats),
+        "achievements": [serialize_record(row) for row in badges],
+        "recent_events": [serialize_record(row) for row in recent],
+        "available_achievements": ACHIEVEMENTS,
+    }
+
+
+@app.get("/api/teacher/analytics")
+async def teacher_analytics():
+    if not db_pool:
+        return {"students": len(MEMORY_USERS), "events": len(MEMORY_EVENTS), "achievements": len(MEMORY_USER_ACHIEVEMENTS), "students_detail": []}
+
+    totals = await db_pool.fetchrow(
+        """
+        select
+          count(*) filter (where role = 'student') as students,
+          (select count(*) from learning_events) as events,
+          (select count(*) from user_achievements) as achievements,
+          (select count(*) from submissions) as submissions
+        from users
+        """
+    )
+    students = await db_pool.fetch(
+        """
+        select
+          u.id::text, u.name, u.email, u.class_name,
+          count(le.id) as event_count,
+          count(distinct le.target_id) filter (where le.event_type = 'knowledge_view') as knowledge_count,
+          count(ua.achievement_code) as badge_count,
+          max(le.created_at) as last_active
+        from users u
+        left join learning_events le on le.user_id = u.id
+        left join user_achievements ua on ua.user_id = u.id
+        where u.role = 'student'
+        group by u.id, u.name, u.email, u.class_name
+        order by last_active desc nulls last, u.created_at desc
+        limit 30
+        """
+    )
+    return {**serialize_record(totals), "students_detail": [serialize_record(row) for row in students]}
 
 
 @app.get("/api/content")
@@ -398,14 +643,15 @@ async def create_submission(payload: SubmissionCreateRequest):
         "created_at": now_iso(),
     }
 
-    if db_pool and payload.exercise_id:
+    if db_pool:
         row = await db_pool.fetchrow(
             """
-            insert into submissions (exercise_id, answer, status, score)
-            values ($1::uuid, $2, 'ai_reviewed', $3)
+            insert into submissions (exercise_id, student_id, answer, status, score)
+            values ($1::uuid, $2::uuid, $3, 'ai_reviewed', $4)
             returning id::text, exercise_id::text, answer, status, score, created_at
             """,
             payload.exercise_id,
+            payload.student_id,
             payload.answer,
             submission["score"],
         )
@@ -421,8 +667,17 @@ async def create_submission(payload: SubmissionCreateRequest):
             ai_result.provider,
             ai_result.feedback,
         )
-
-    MEMORY_SUBMISSIONS.insert(0, submission)
+    else:
+        MEMORY_SUBMISSIONS.insert(0, submission)
+    if payload.student_id:
+        await record_learning_event(
+            LearningEventRequest(
+                user_id=payload.student_id,
+                event_type="submission",
+                target_id=payload.exercise_id,
+                metadata={"score": submission["score"], "provider": submission["provider"]},
+            )
+        )
     return submission
 
 
@@ -594,6 +849,85 @@ def memory_teacher_summary() -> dict[str, Any]:
             {"title": "MTPE 质量评估与人工干预", "exercise_count": 1},
         ],
         "recent_submissions": recent,
+    }
+
+
+async def award_achievements(user_id: str) -> None:
+    if not db_pool:
+        events = [item for item in MEMORY_EVENTS if item["user_id"] == user_id]
+        earned_codes = {item["achievement_code"] for item in MEMORY_USER_ACHIEVEMENTS if item["user_id"] == user_id}
+        for code in qualified_achievement_codes(events):
+            if code not in earned_codes:
+                MEMORY_USER_ACHIEVEMENTS.append({"user_id": user_id, "achievement_code": code, "awarded_at": now_iso()})
+        return
+
+    stats = await db_pool.fetchrow(
+        """
+        select
+          count(*) as events,
+          count(*) filter (where event_type = 'login') as logins,
+          count(*) filter (where event_type = 'ai_review') as ai_reviews,
+          count(*) filter (where event_type = 'submission') as submissions,
+          count(distinct target_id) filter (where event_type = 'knowledge_view') as knowledge_count
+        from learning_events
+        where user_id = $1::uuid
+        """,
+        user_id,
+    )
+    qualified = []
+    if int(stats["logins"] or 0) >= 1:
+        qualified.append("first-login")
+    if int(stats["knowledge_count"] or 0) >= 3:
+        qualified.append("graph-explorer")
+    if int(stats["ai_reviews"] or 0) >= 1:
+        qualified.append("ai-practice")
+    if int(stats["submissions"] or 0) >= 1:
+        qualified.append("first-submission")
+    if int(stats["events"] or 0) >= 8:
+        qualified.append("steady-learner")
+
+    for code in qualified:
+        await db_pool.execute(
+            """
+            insert into user_achievements (user_id, achievement_code)
+            values ($1::uuid, $2)
+            on conflict do nothing
+            """,
+            user_id,
+            code,
+        )
+
+
+def qualified_achievement_codes(events: list[dict[str, Any]]) -> list[str]:
+    event_types = [item["event_type"] for item in events]
+    knowledge_targets = {item.get("target_id") for item in events if item["event_type"] == "knowledge_view" and item.get("target_id")}
+    codes = []
+    if "login" in event_types:
+        codes.append("first-login")
+    if len(knowledge_targets) >= 3:
+        codes.append("graph-explorer")
+    if "ai_review" in event_types:
+        codes.append("ai-practice")
+    if "submission" in event_types:
+        codes.append("first-submission")
+    if len(events) >= 8:
+        codes.append("steady-learner")
+    return codes
+
+
+def memory_student_dashboard(events: list[dict[str, Any]], earned: list[dict[str, Any]]) -> dict[str, Any]:
+    earned_codes = {item["achievement_code"] for item in earned}
+    return {
+        "stats": {
+            "event_count": len(events),
+            "knowledge_views": len([item for item in events if item["event_type"] == "knowledge_view"]),
+            "knowledge_count": len({item.get("target_id") for item in events if item["event_type"] == "knowledge_view"}),
+            "submissions": len([item for item in events if item["event_type"] == "submission"]),
+            "ai_reviews": len([item for item in events if item["event_type"] == "ai_review"]),
+        },
+        "achievements": [{**item, "achievement_code": item["code"]} for item in ACHIEVEMENTS if item["code"] in earned_codes],
+        "recent_events": events[-8:][::-1],
+        "available_achievements": ACHIEVEMENTS,
     }
 
 

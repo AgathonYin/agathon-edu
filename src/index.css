@@ -633,6 +633,97 @@ h3 {
   font-weight: 700;
 }
 
+.student-profile {
+  margin-top: 22px;
+}
+
+.profile-card {
+  display: grid;
+  gap: 10px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.78);
+}
+
+.profile-card > strong {
+  font-family: 'Noto Serif SC', serif;
+  font-size: 22px;
+}
+
+.profile-card > span,
+.profile-card small {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.profile-card input {
+  width: 100%;
+  min-height: 38px;
+  padding: 9px 11px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: white;
+  outline: none;
+}
+
+.mini-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.mini-stats span {
+  padding: 10px;
+  border-radius: 8px;
+  background: rgba(45, 101, 116, 0.08);
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.mini-stats b {
+  display: block;
+  color: var(--ink);
+  font-size: 20px;
+}
+
+.badge-grid {
+  display: grid;
+  gap: 8px;
+}
+
+.badge-grid span {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  min-height: 34px;
+  padding: 7px 9px;
+  border: 1px solid rgba(23, 32, 44, 0.1);
+  border-radius: 8px;
+  color: var(--muted);
+  background: rgba(247, 241, 230, 0.72);
+  font-size: 13px;
+}
+
+.badge-grid span.earned {
+  color: var(--ink);
+  border-color: rgba(214, 168, 79, 0.45);
+  background: rgba(214, 168, 79, 0.16);
+}
+
+.badge-grid i {
+  display: grid;
+  width: 26px;
+  height: 26px;
+  place-items: center;
+  border-radius: 50%;
+  color: white;
+  background: var(--teal);
+  font-style: normal;
+  font-weight: 900;
+  font-size: 11px;
+}
+
 .teacher-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));

@@ -33,6 +33,51 @@ export type SubmissionResponse = {
   created_at: string
 }
 
+export type UserProfile = {
+  id: string
+  email: string
+  name: string
+  role: string
+  class_name?: string | null
+}
+
+export type StudentDashboard = {
+  stats: {
+    event_count: number
+    knowledge_views: number
+    knowledge_count: number
+    submissions: number
+    ai_reviews: number
+  }
+  achievements: Array<{
+    code?: string
+    achievement_code?: string
+    title: string
+    description: string
+    icon: string
+    awarded_at?: string
+  }>
+  recent_events: Array<{ event_type: string; target_id?: string | null; created_at?: string }>
+  available_achievements: Array<{ code: string; title: string; description: string; icon: string; rule: string }>
+}
+
+export type TeacherAnalytics = {
+  students: number
+  events: number
+  achievements: number
+  submissions: number
+  students_detail: Array<{
+    id: string
+    name: string
+    email: string
+    class_name?: string | null
+    event_count: number
+    knowledge_count: number
+    badge_count: number
+    last_active?: string | null
+  }>
+}
+
 export type TeacherSummary = {
   students: number
   submissions: number
@@ -134,6 +179,7 @@ export async function generateExercise(payload: {
 
 export async function createSubmission(payload: {
   exercise_id?: string
+  student_id?: string
   student_name?: string
   answer: string
   source?: string
@@ -145,6 +191,51 @@ export async function createSubmission(payload: {
   })
   if (!response.ok) {
     throw new Error(`Submission failed: ${response.status}`)
+  }
+  return response.json()
+}
+
+export async function loginUser(payload: { email: string; name: string; class_name?: string; role?: 'student' | 'teacher' }): Promise<UserProfile> {
+  const response = await fetch(`${baseUrl}/api/auth/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ role: 'student', ...payload }),
+  })
+  if (!response.ok) {
+    throw new Error(`Login failed: ${response.status}`)
+  }
+  return response.json()
+}
+
+export async function recordLearningEvent(payload: {
+  user_id: string
+  event_type: 'login' | 'knowledge_view' | 'lesson_view' | 'ai_review' | 'submission'
+  target_id?: string
+  metadata?: Record<string, unknown>
+}): Promise<{ ok: boolean }> {
+  const response = await fetch(`${baseUrl}/api/learning-events`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ metadata: {}, ...payload }),
+  })
+  if (!response.ok) {
+    throw new Error(`Learning event failed: ${response.status}`)
+  }
+  return response.json()
+}
+
+export async function fetchStudentDashboard(userId: string): Promise<StudentDashboard> {
+  const response = await fetch(`${baseUrl}/api/students/${userId}/dashboard`)
+  if (!response.ok) {
+    throw new Error(`Student dashboard failed: ${response.status}`)
+  }
+  return response.json()
+}
+
+export async function fetchTeacherAnalytics(): Promise<TeacherAnalytics> {
+  const response = await fetch(`${baseUrl}/api/teacher/analytics`)
+  if (!response.ok) {
+    throw new Error(`Teacher analytics failed: ${response.status}`)
   }
   return response.json()
 }

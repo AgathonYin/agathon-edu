@@ -19,8 +19,12 @@ import {
   createSubmission,
   deleteKnowledgeEdge,
   fetchContent,
+  fetchStudentDashboard,
+  fetchTeacherAnalytics,
   fetchTeacherSummary,
   importContent,
+  loginUser,
+  recordLearningEvent,
   requestAiFeedback,
   saveCourseWeek,
   saveKnowledgeEdge,
@@ -29,7 +33,10 @@ import {
   type CourseWeekPayload,
   type KnowledgeEdgePayload,
   type KnowledgePointPayload,
+  type StudentDashboard,
+  type TeacherAnalytics,
   type TeacherSummary,
+  type UserProfile,
 } from './api'
 import { featurePages, gameCases, knowledgePoints, lessons, weeks, type FeaturePage, type Lesson } from './courseData'
 
@@ -91,6 +98,10 @@ function App() {
   const [courseKnowledge, setCourseKnowledge] = useState<KnowledgePointPayload[]>(knowledgePoints)
   const [courseEdges, setCourseEdges] = useState<KnowledgeEdgePayload[]>(defaultKnowledgeEdges)
   const [contentState, setContentState] = useState('使用本地课程数据')
+  const [currentUser, setCurrentUser] = useState<UserProfile | null>(() => {
+    const saved = localStorage.getItem('agathon-user')
+    return saved ? JSON.parse(saved) as UserProfile : null
+  })
 
   const activeLesson = useMemo(() => lessons.find((lesson) => lesson.slug === view), [view])
   const activeFeature = useMemo(() => featurePages.find((feature) => feature.slug === view), [view])
@@ -132,6 +143,8 @@ function App() {
             selectedPoint={selectedPoint}
             knowledge={courseKnowledge}
             edges={courseEdges}
+            currentUser={currentUser}
+            setCurrentUser={setCurrentUser}
           />
         )}
         {view === 'teacher' && (
@@ -148,7 +161,7 @@ function App() {
             setCourseEdges={setCourseEdges}
           />
         )}
-        {view === 'ai' && <AiWorkbench key="ai" setView={setView} />}
+        {view === 'ai' && <AiWorkbench key="ai" setView={setView} currentUser={currentUser} />}
         {view === 'game' && <GameLocalizationView key="game" setView={setView} />}
         {activeLesson && <LessonView key={activeLesson.slug} lesson={activeLesson} setView={setView} />}
         {activeFeature && <FeaturePageView key={activeFeature.slug} feature={activeFeature} setView={setView} />}
@@ -295,6 +308,8 @@ function StudentView({
   selectedPoint,
   knowledge,
   edges,
+  currentUser,
+  setCurrentUser,
 }: {
   setView: (view: View) => void
   selectedKnowledge: string
@@ -302,7 +317,51 @@ function StudentView({
   selectedPoint: KnowledgePointPayload
   knowledge: KnowledgePointPayload[]
   edges: KnowledgeEdgePayload[]
+  currentUser: UserProfile | null
+  setCurrentUser: (user: UserProfile | null) => void
 }) {
+  const [loginForm, setLoginForm] = useState({ name: currentUser?.name ?? '', email: currentUser?.email ?? '', class_name: currentUser?.class_name ?? '' })
+  const [studentDashboard, setStudentDashboard] = useState<StudentDashboard | null>(null)
+  const [studentState, setStudentState] = useState(currentUser ? '学习档案已连接' : '请先建立学习档案')
+
+  async function refreshStudentDashboard(user = currentUser) {
+    if (!user) return
+    try {
+      const data = await fetchStudentDashboard(user.id)
+      setStudentDashboard(data)
+      setStudentState('学习记录已同步')
+    } catch {
+      setStudentState('学习记录暂未同步')
+    }
+  }
+
+  async function handleStudentLogin() {
+    setStudentState('登录中...')
+    try {
+      const user = await loginUser({ ...loginForm, role: 'student' })
+      localStorage.setItem('agathon-user', JSON.stringify(user))
+      setCurrentUser(user)
+      await refreshStudentDashboard(user)
+    } catch {
+      setStudentState('登录失败，请检查后端连接')
+    }
+  }
+
+  async function handleKnowledgeSelect(id: string) {
+    setSelectedKnowledge(id)
+    if (!currentUser) return
+    try {
+      await recordLearningEvent({ user_id: currentUser.id, event_type: 'knowledge_view', target_id: id })
+      await refreshStudentDashboard(currentUser)
+    } catch {
+      setStudentState('本次学习记录未保存')
+    }
+  }
+
+  useEffect(() => {
+    refreshStudentDashboard()
+  }, [currentUser?.id])
+
   return (
     <Screen className="workspace-view">
       <BackButton setView={setView} />
@@ -330,7 +389,7 @@ function StudentView({
             <p className="eyebrow">Knowledge Graph</p>
             <h2>知识点图谱</h2>
           </div>
-          <KnowledgeGraph knowledge={knowledge} edges={edges} selectedKnowledge={selectedKnowledge} setSelectedKnowledge={setSelectedKnowledge} />
+          <KnowledgeGraph knowledge={knowledge} edges={edges} selectedKnowledge={selectedKnowledge} setSelectedKnowledge={handleKnowledgeSelect} />
           <article className="detail-panel">
             <span className="pill">{selectedPoint.module}</span>
             <h3>{selectedPoint.title}</h3>
@@ -353,16 +412,79 @@ function StudentView({
           </div>
           <div className="path-list">
             {knowledge.slice(0, 5).map((point, index) => (
-              <button key={point.id} onClick={() => setSelectedKnowledge(point.id)}>
+              <button key={point.id} onClick={() => handleKnowledgeSelect(point.id)}>
                 <span>{index + 1}</span>
                 <strong>{point.title}</strong>
                 <small>{point.module} · {point.tags[0]}</small>
               </button>
             ))}
           </div>
+          <StudentProfilePanel
+            currentUser={currentUser}
+            loginForm={loginForm}
+            setLoginForm={setLoginForm}
+            handleStudentLogin={handleStudentLogin}
+            dashboard={studentDashboard}
+            state={studentState}
+          />
         </aside>
       </div>
     </Screen>
+  )
+}
+
+function StudentProfilePanel({
+  currentUser,
+  loginForm,
+  setLoginForm,
+  handleStudentLogin,
+  dashboard,
+  state,
+}: {
+  currentUser: UserProfile | null
+  loginForm: { name: string; email: string; class_name: string }
+  setLoginForm: React.Dispatch<React.SetStateAction<{ name: string; email: string; class_name: string }>>
+  handleStudentLogin: () => void
+  dashboard: StudentDashboard | null
+  state: string
+}) {
+  return (
+    <div className="student-profile">
+      <div className="section-heading compact">
+        <p className="eyebrow">Learning Record</p>
+        <h2>学习档案</h2>
+      </div>
+      {currentUser ? (
+        <div className="profile-card">
+          <strong>{currentUser.name}</strong>
+          <span>{currentUser.class_name || '未设置班级'} · {state}</span>
+          <div className="mini-stats">
+            <span><b>{dashboard?.stats.knowledge_count ?? 0}</b>知识点</span>
+            <span><b>{dashboard?.stats.submissions ?? 0}</b>提交</span>
+            <span><b>{dashboard?.achievements.length ?? 0}</b>徽章</span>
+          </div>
+          <div className="badge-grid">
+            {(dashboard?.achievements.length ? dashboard.achievements : dashboard?.available_achievements.slice(0, 3) ?? []).map((badge) => {
+              const isEarned = 'awarded_at' in badge && Boolean(badge.awarded_at)
+              const badgeKey = 'achievement_code' in badge ? badge.achievement_code : badge.code
+              return (
+              <span className={isEarned ? 'earned' : ''} key={badgeKey}>
+                <i>{badge.icon}</i>
+                {badge.title}
+              </span>
+            )})}
+          </div>
+        </div>
+      ) : (
+        <div className="profile-card">
+          <input value={loginForm.name} onChange={(event) => setLoginForm((item) => ({ ...item, name: event.target.value }))} placeholder="姓名" />
+          <input value={loginForm.email} onChange={(event) => setLoginForm((item) => ({ ...item, email: event.target.value }))} placeholder="邮箱" />
+          <input value={loginForm.class_name ?? ''} onChange={(event) => setLoginForm((item) => ({ ...item, class_name: event.target.value }))} placeholder="班级，例如 24日语1班" />
+          <button className="primary-btn" onClick={handleStudentLogin}>建立学习档案</button>
+          <small>{state}</small>
+        </div>
+      )}
+    </div>
   )
 }
 
@@ -510,12 +632,15 @@ function TeacherView({
     recent_submissions: [],
   })
   const [syncState, setSyncState] = useState('等待连接后端')
+  const [analytics, setAnalytics] = useState<TeacherAnalytics | null>(null)
 
   async function refreshSummary() {
     setSyncState('同步中...')
     try {
       const data = await fetchTeacherSummary()
+      const analyticsData = await fetchTeacherAnalytics()
       setSummary(data)
+      setAnalytics(analyticsData)
       setSyncState('已连接教学 API')
     } catch {
       setSyncState('后端未连接，显示本地迁移数据')
@@ -549,7 +674,7 @@ function TeacherView({
       </div>
       <div className="teacher-grid">
         <TeacherCard icon={<ClipboardPen />} title="作业提交" value={`${summary.submissions} 份`} text={`待复评 ${summary.pending_reviews} 份，学生端提交后可自动进入 AI 初评。`} />
-        <TeacherCard icon={<LineChart />} title="学情分析" value={`${summary.average_score || '--'} 分`} text={syncState} />
+        <TeacherCard icon={<LineChart />} title="学情分析" value={`${analytics?.events ?? 0} 次`} text={`${syncState} · ${analytics?.achievements ?? 0} 枚徽章已发放`} />
         <TeacherCard icon={<FileText />} title="课程内容" value={`${courseWeeks.length} 周`} text={contentState} />
         <TeacherCard icon={<WandSparkles />} title="AI 批改" value="DeepSeek/Ollama" text="统一 AI Provider，支持国产模型和本地模型切换。" />
       </div>
@@ -571,15 +696,22 @@ function TeacherView({
         </section>
         <aside className="side-pane">
           <div className="section-heading compact">
-            <p className="eyebrow">Knowledge Coverage</p>
-            <h2>练习覆盖</h2>
+            <p className="eyebrow">Student Analytics</p>
+            <h2>学生学习统计</h2>
           </div>
           <div className="path-list">
-            {summary.top_knowledge.map((item, index) => (
+            {(analytics?.students_detail.length ? analytics.students_detail : []).map((item) => (
+              <button key={item.id}>
+                <span>{item.badge_count}</span>
+                <strong>{item.name}</strong>
+                <small>{item.class_name || '未设置班级'} · {item.event_count} 次记录 · {item.knowledge_count} 个知识点</small>
+              </button>
+            ))}
+            {!analytics?.students_detail.length && summary.top_knowledge.map((item, index) => (
               <button key={`${item.title}-${index}`}>
                 <span>{item.exercise_count}</span>
                 <strong>{item.title}</strong>
-                <small>已关联练习数</small>
+                <small>暂无学生登录，先显示练习覆盖</small>
               </button>
             ))}
           </div>
@@ -796,7 +928,7 @@ function TeacherCard({ icon, title, value, text }: { icon: React.ReactNode; titl
   )
 }
 
-function AiWorkbench({ setView }: { setView: (view: View) => void }) {
+function AiWorkbench({ setView, currentUser }: { setView: (view: View) => void; currentUser: UserProfile | null }) {
   const [source, setSource] = useState('请贵司于本月30日前支付尾款。')
   const [mode, setMode] = useState<AiMode>('review')
   const [feedback, setFeedback] = useState('这句话应转为日语商务邮件中的礼貌请求，可加入缓冲语并保留付款期限这一业务事实。')
@@ -810,6 +942,9 @@ function AiWorkbench({ setView }: { setView: (view: View) => void }) {
       const result = await requestAiFeedback({ mode, source })
       setFeedback(result.feedback)
       setProvider(result.provider)
+      if (currentUser) {
+        await recordLearningEvent({ user_id: currentUser.id, event_type: 'ai_review', target_id: mode, metadata: { provider: result.provider } })
+      }
     } catch {
       setProvider('local fallback')
       setFeedback('后端暂未连接或模型服务不可用。当前使用本地示例反馈：请先判断文本功能，再按日语商务邮件体裁补足缓冲表达，同时保留付款期限和责任关系。')
@@ -823,7 +958,8 @@ function AiWorkbench({ setView }: { setView: (view: View) => void }) {
     setSubmissionState('提交中...')
     try {
       const result = await createSubmission({
-        student_name: '访客学生',
+        student_id: currentUser?.id,
+        student_name: currentUser?.name ?? '访客学生',
         answer: source,
         source,
       })

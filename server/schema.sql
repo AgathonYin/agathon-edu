@@ -9,6 +9,31 @@ create table if not exists users (
   created_at timestamptz not null default now()
 );
 
+create table if not exists learning_events (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references users(id) on delete cascade,
+  event_type text not null check (event_type in ('login', 'knowledge_view', 'lesson_view', 'ai_review', 'submission')),
+  target_id text,
+  metadata jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now()
+);
+
+create table if not exists achievements (
+  code text primary key,
+  title text not null,
+  description text not null,
+  icon text not null,
+  rule text not null,
+  created_at timestamptz not null default now()
+);
+
+create table if not exists user_achievements (
+  user_id uuid not null references users(id) on delete cascade,
+  achievement_code text not null references achievements(code) on delete cascade,
+  awarded_at timestamptz not null default now(),
+  primary key (user_id, achievement_code)
+);
+
 create table if not exists knowledge_points (
   id text primary key,
   title text not null,
@@ -106,6 +131,8 @@ create table if not exists web_contents (
 );
 
 create index if not exists idx_knowledge_points_module on knowledge_points(module);
+create index if not exists idx_learning_events_user on learning_events(user_id);
+create index if not exists idx_learning_events_type on learning_events(event_type);
 create index if not exists idx_course_weeks_status on course_weeks(status);
 create index if not exists idx_knowledge_edges_source on knowledge_edges(source_id);
 create index if not exists idx_knowledge_edges_target on knowledge_edges(target_id);
