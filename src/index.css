@@ -738,6 +738,18 @@ h3 {
   margin-top: 18px;
 }
 
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  min-height: 34px;
+  padding: 0 12px;
+  border-radius: 999px;
+  color: var(--teal);
+  background: rgba(45, 101, 116, 0.1);
+  font-size: 13px;
+  font-weight: 800;
+}
+
 .admin-actions {
   display: flex;
   flex-wrap: wrap;
@@ -818,6 +830,100 @@ h3 {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.materials-layout {
+  display: grid;
+  grid-template-columns: minmax(300px, 0.82fr) minmax(0, 1.18fr);
+  gap: 18px;
+}
+
+.materials-sidebar,
+.material-reader {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.78);
+}
+
+.materials-sidebar {
+  padding: 16px;
+}
+
+.material-list {
+  display: grid;
+  gap: 10px;
+  max-height: 720px;
+  overflow: auto;
+  padding-right: 4px;
+}
+
+.material-list button {
+  display: grid;
+  gap: 5px;
+  padding: 13px;
+  border: 1px solid rgba(23, 32, 44, 0.1);
+  border-radius: 8px;
+  background: #fff;
+  text-align: left;
+}
+
+.material-list button.active {
+  border-color: rgba(45, 101, 116, 0.48);
+  background: rgba(45, 101, 116, 0.08);
+}
+
+.material-list span,
+.material-list small,
+.material-source {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.material-list strong {
+  font-size: 15px;
+}
+
+.material-list small {
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  line-height: 1.55;
+}
+
+.material-reader {
+  padding: clamp(20px, 3vw, 34px);
+}
+
+.material-reader h2 {
+  margin-top: 14px;
+  font-size: clamp(28px, 4vw, 42px);
+}
+
+.material-source {
+  margin: 10px 0 18px;
+}
+
+.material-reader pre {
+  max-height: 620px;
+  overflow: auto;
+  padding: 18px;
+  border: 1px solid rgba(23, 32, 44, 0.1);
+  border-radius: 8px;
+  background: rgba(247, 241, 230, 0.72);
+  color: var(--ink);
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: inherit;
+  font-size: 14px;
+  line-height: 1.78;
+}
+
+.empty-state {
+  display: grid;
+  min-height: 260px;
+  place-items: center;
+  color: var(--muted);
 }
 
 .teacher-card {
@@ -1034,6 +1140,7 @@ textarea {
   .hero-band,
   .two-column,
   .ai-layout,
+  .materials-layout,
   .split-card,
   .feature-detail {
     grid-template-columns: 1fr;

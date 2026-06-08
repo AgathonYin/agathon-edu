@@ -102,6 +102,21 @@ class CourseContentPayload(BaseModel):
     knowledge_edges: list[KnowledgeEdgePayload] = []
 
 
+class CourseMaterialPayload(BaseModel):
+    title: str
+    category: str
+    material_type: str
+    week: int | None = None
+    source_path: str
+    summary: str | None = None
+    content: str | None = None
+    metadata: dict[str, Any] = {}
+
+
+class CourseMaterialsImportPayload(BaseModel):
+    materials: list[CourseMaterialPayload]
+
+
 class LoginRequest(BaseModel):
     email: str
     name: str
@@ -312,6 +327,23 @@ async def ensure_schema() -> None:
 
         create index if not exists idx_learning_events_user on learning_events(user_id);
         create index if not exists idx_learning_events_type on learning_events(event_type);
+
+        create table if not exists course_materials (
+          id uuid primary key default gen_random_uuid(),
+          title text not null,
+          category text not null,
+          material_type text not null,
+          week int,
+          source_path text unique not null,
+          summary text,
+          content text,
+          metadata jsonb not null default '{}'::jsonb,
+          created_at timestamptz not null default now(),
+          updated_at timestamptz not null default now()
+        );
+
+        create index if not exists idx_course_materials_week on course_materials(week);
+        create index if not exists idx_course_materials_category on course_materials(category);
         """
     )
     for achievement in ACHIEVEMENTS:
@@ -499,6 +531,55 @@ async def content():
         "knowledge_points": [serialize_record(row) for row in points],
         "knowledge_edges": [serialize_record(row) for row in edges],
     }
+
+
+@app.get("/api/materials")
+async def materials():
+    if not db_pool:
+        return []
+    rows = await db_pool.fetch(
+        """
+        select id::text, title, category, material_type, week, source_path, summary, content, metadata, updated_at
+        from course_materials
+        order by coalesce(week, 999), category, title
+        limit 300
+        """
+    )
+    return [serialize_record(row) for row in rows]
+
+
+@app.post("/api/materials/import")
+async def import_materials(payload: CourseMaterialsImportPayload):
+    if not db_pool:
+        return {"ok": True, "materials": len(payload.materials)}
+
+    async with db_pool.acquire() as conn:
+        async with conn.transaction():
+            for item in payload.materials:
+                await conn.execute(
+                    """
+                    insert into course_materials (title, category, material_type, week, source_path, summary, content, metadata)
+                    values ($1, $2, $3, $4, $5, $6, $7, $8::jsonb)
+                    on conflict (source_path) do update set
+                      title = excluded.title,
+                      category = excluded.category,
+                      material_type = excluded.material_type,
+                      week = excluded.week,
+                      summary = excluded.summary,
+                      content = excluded.content,
+                      metadata = excluded.metadata,
+                      updated_at = now()
+                    """,
+                    item.title,
+                    item.category,
+                    item.material_type,
+                    item.week,
+                    item.source_path,
+                    item.summary,
+                    item.content,
+                    json.dumps(item.metadata, ensure_ascii=False),
+                )
+    return {"ok": True, "materials": len(payload.materials)}
 
 
 @app.post("/api/content/import")

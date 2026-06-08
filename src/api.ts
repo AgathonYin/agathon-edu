@@ -128,6 +128,19 @@ export type CourseContent = {
   knowledge_edges: KnowledgeEdgePayload[]
 }
 
+export type CourseMaterial = {
+  id: string
+  title: string
+  category: string
+  material_type: string
+  week?: number | null
+  source_path: string
+  summary?: string | null
+  content?: string | null
+  metadata?: Record<string, unknown>
+  updated_at?: string
+}
+
 const baseUrl = import.meta.env.VITE_API_BASE_URL || ''
 
 export async function requestAiFeedback(payload: AiRequest): Promise<AiResponse> {
@@ -302,6 +315,26 @@ export async function deleteKnowledgeEdge(sourceId: string, targetId: string): P
   })
   if (!response.ok) {
     throw new Error(`Delete knowledge edge failed: ${response.status}`)
+  }
+  return response.json()
+}
+
+export async function fetchMaterials(): Promise<CourseMaterial[]> {
+  const response = await fetch(`${baseUrl}/api/materials`)
+  if (!response.ok) {
+    throw new Error(`Materials failed: ${response.status}`)
+  }
+  return response.json()
+}
+
+export async function importMaterials(payload: { materials: Omit<CourseMaterial, 'id' | 'updated_at'>[] }): Promise<{ ok: boolean; materials: number }> {
+  const response = await fetch(`${baseUrl}/api/materials/import`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+  if (!response.ok) {
+    throw new Error(`Import materials failed: ${response.status}`)
   }
   return response.json()
 }

@@ -20,6 +20,7 @@ import {
   deleteKnowledgeEdge,
   fetchContent,
   fetchStudentDashboard,
+  fetchMaterials,
   fetchTeacherAnalytics,
   fetchTeacherSummary,
   importContent,
@@ -31,6 +32,7 @@ import {
   saveKnowledgePoint,
   type AiMode,
   type CourseWeekPayload,
+  type CourseMaterial,
   type KnowledgeEdgePayload,
   type KnowledgePointPayload,
   type StudentDashboard,
@@ -162,6 +164,7 @@ function App() {
           />
         )}
         {view === 'ai' && <AiWorkbench key="ai" setView={setView} currentUser={currentUser} />}
+        {view === 'materials' && <MaterialsView key="materials" setView={setView} currentUser={currentUser} />}
         {view === 'game' && <GameLocalizationView key="game" setView={setView} />}
         {activeLesson && <LessonView key={activeLesson.slug} lesson={activeLesson} setView={setView} />}
         {activeFeature && <FeaturePageView key={activeFeature.slug} feature={activeFeature} setView={setView} />}
@@ -192,6 +195,10 @@ function TopNav({ setView }: { setView: (view: View) => void }) {
         <button onClick={() => setView('ai')}>
           <WandSparkles size={18} />
           AI 工作台
+        </button>
+        <button onClick={() => setView('materials')}>
+          <FileText size={18} />
+          讲义库
         </button>
       </nav>
     </header>
@@ -1022,6 +1029,91 @@ function AiWorkbench({ setView, currentUser }: { setView: (view: View) => void; 
             <p>{submissionState}</p>
           </div>
         </aside>
+      </div>
+    </Screen>
+  )
+}
+
+function MaterialsView({ setView, currentUser }: { setView: (view: View) => void; currentUser: UserProfile | null }) {
+  const [materials, setMaterials] = useState<CourseMaterial[]>([])
+  const [activeId, setActiveId] = useState<string>('')
+  const [filter, setFilter] = useState('全部')
+  const [state, setState] = useState('加载讲义中...')
+
+  const categories = useMemo(() => ['全部', ...Array.from(new Set(materials.map((item) => item.category)))], [materials])
+  const visibleMaterials = useMemo(() => {
+    return materials.filter((item) => filter === '全部' || item.category === filter)
+  }, [materials, filter])
+  const active = materials.find((item) => item.id === activeId) ?? visibleMaterials[0]
+
+  useEffect(() => {
+    async function load() {
+      try {
+        const data = await fetchMaterials()
+        setMaterials(data)
+        setActiveId(data[0]?.id ?? '')
+        setState(data.length ? `已载入 ${data.length} 份讲义` : '讲义库为空，等待教师导入')
+      } catch {
+        setState('讲义库暂未连接')
+      }
+    }
+    load()
+  }, [])
+
+  async function selectMaterial(item: CourseMaterial) {
+    setActiveId(item.id)
+    if (!currentUser) return
+    try {
+      await recordLearningEvent({ user_id: currentUser.id, event_type: 'lesson_view', target_id: item.id, metadata: { title: item.title, week: item.week } })
+    } catch {
+      setState('讲义查看记录未保存')
+    }
+  }
+
+  return (
+    <Screen className="workspace-view">
+      <BackButton setView={setView} />
+      <div className="dashboard-header">
+        <div>
+          <p className="eyebrow">Course Materials</p>
+          <h1>讲义资料库</h1>
+        </div>
+        <span className="status-pill">{state}</span>
+      </div>
+
+      <div className="materials-layout">
+        <aside className="materials-sidebar">
+          <div className="segmented">
+            {categories.map((category) => (
+              <button className={filter === category ? 'active' : ''} key={category} onClick={() => setFilter(category)}>
+                {category}
+              </button>
+            ))}
+          </div>
+          <div className="material-list">
+            {visibleMaterials.map((item) => (
+              <button className={active?.id === item.id ? 'active' : ''} key={item.id} onClick={() => selectMaterial(item)}>
+                <span>W{item.week ?? '--'} · {item.material_type.toUpperCase()}</span>
+                <strong>{item.title}</strong>
+                <small>{item.summary || item.source_path}</small>
+              </button>
+            ))}
+          </div>
+        </aside>
+
+        <article className="material-reader">
+          {active ? (
+            <>
+              <span className="pill">{active.category} · 第 {active.week ?? '--'} 周</span>
+              <h2>{active.title}</h2>
+              <p className="material-source">{active.source_path}</p>
+              <div className="callout">{active.summary}</div>
+              <pre>{active.content}</pre>
+            </>
+          ) : (
+            <div className="empty-state">暂无讲义材料。</div>
+          )}
+        </article>
       </div>
     </Screen>
   )

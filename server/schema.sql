@@ -130,6 +130,20 @@ create table if not exists web_contents (
   created_at timestamptz not null default now()
 );
 
+create table if not exists course_materials (
+  id uuid primary key default gen_random_uuid(),
+  title text not null,
+  category text not null,
+  material_type text not null,
+  week int,
+  source_path text unique not null,
+  summary text,
+  content text,
+  metadata jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
 create index if not exists idx_knowledge_points_module on knowledge_points(module);
 create index if not exists idx_learning_events_user on learning_events(user_id);
 create index if not exists idx_learning_events_type on learning_events(event_type);
@@ -139,3 +153,5 @@ create index if not exists idx_knowledge_edges_target on knowledge_edges(target_
 create index if not exists idx_exercises_knowledge_point on exercises(knowledge_point_id);
 create index if not exists idx_submissions_student on submissions(student_id);
 create index if not exists idx_submissions_exercise on submissions(exercise_id);
+create index if not exists idx_course_materials_week on course_materials(week);
+create index if not exists idx_course_materials_category on course_materials(category);
