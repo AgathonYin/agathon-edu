@@ -3,7 +3,6 @@ import {
   ArrowLeft,
   BarChart3,
   Brain,
-  CheckCircle2,
   ChevronRight,
   ClipboardPen,
   FileText,
@@ -936,24 +935,24 @@ function TeacherCard({ icon, title, value, text }: { icon: React.ReactNode; titl
 }
 
 function AiWorkbench({ setView, currentUser }: { setView: (view: View) => void; currentUser: UserProfile | null }) {
-  const [source, setSource] = useState('请贵司于本月30日前支付尾款。')
+  const [prompt, setPrompt] = useState('请将下列中文业务句子译为自然的日语商务邮件表达，并说明缓冲语处理。')
+  const [answer, setAnswer] = useState('请贵司于本月30日前支付尾款。\n\n本月30日までに代金の支払いをお願い申し上げます')
   const [mode, setMode] = useState<AiMode>('review')
   const [feedback, setFeedback] = useState('这句话应转为日语商务邮件中的礼貌请求，可加入缓冲语并保留付款期限这一业务事实。')
-  const [provider, setProvider] = useState('mock')
   const [isLoading, setIsLoading] = useState(false)
   const [submissionState, setSubmissionState] = useState('尚未提交')
+
+  const source = `练习题：\n${prompt}\n\n学生作答：\n${answer}`
 
   async function handleAiFeedback() {
     setIsLoading(true)
     try {
       const result = await requestAiFeedback({ mode, source })
       setFeedback(result.feedback)
-      setProvider(result.provider)
       if (currentUser) {
         await recordLearningEvent({ user_id: currentUser.id, event_type: 'ai_review', target_id: mode, metadata: { provider: result.provider } })
       }
     } catch {
-      setProvider('local fallback')
       setFeedback('后端暂未连接或模型服务不可用。当前使用本地示例反馈：请先判断文本功能，再按日语商务邮件体裁补足缓冲表达，同时保留付款期限和责任关系。')
     } finally {
       setIsLoading(false)
@@ -967,11 +966,10 @@ function AiWorkbench({ setView, currentUser }: { setView: (view: View) => void; 
       const result = await createSubmission({
         student_id: currentUser?.id,
         student_name: currentUser?.name ?? '访客学生',
-        answer: source,
-        source,
+        answer,
+        source: prompt,
       })
       setFeedback(result.ai_feedback)
-      setProvider(result.provider)
       setSubmissionState(`已提交 · AI 初评 ${result.score ?? '--'} 分`)
     } catch {
       setSubmissionState('后端未连接，暂存失败')
@@ -990,7 +988,7 @@ function AiWorkbench({ setView, currentUser }: { setView: (view: View) => void; 
         </div>
       </div>
       <div className="ai-layout">
-        <section className="content-pane">
+        <section className="content-pane ai-practice-pane">
           <div className="segmented">
             {([
               ['review', '译文点评'],
@@ -1002,27 +1000,33 @@ function AiWorkbench({ setView, currentUser }: { setView: (view: View) => void; 
               </button>
             ))}
           </div>
-          <textarea value={source} onChange={(event) => setSource(event.target.value)} />
-          <button className="primary-btn" onClick={handleAiFeedback} disabled={isLoading}>
-            <WandSparkles size={18} />
-            {isLoading ? '生成中...' : '生成 AI 反馈'}
-          </button>
-          <button className="secondary-btn" onClick={handleSubmitPractice} disabled={isLoading}>
-            <ClipboardPen size={18} />
-            提交为练习作业
-          </button>
+
+          <label className="practice-field">
+            <span>练习题</span>
+            <textarea className="prompt-input" value={prompt} onChange={(event) => setPrompt(event.target.value)} />
+          </label>
+
+          <label className="practice-field answer-field">
+            <span>学生作答</span>
+            <textarea value={answer} onChange={(event) => setAnswer(event.target.value)} />
+          </label>
+
+          <div className="practice-actions">
+            <button className="primary-btn" onClick={handleAiFeedback} disabled={isLoading}>
+              <WandSparkles size={18} />
+              {isLoading ? '生成中...' : '生成 AI 反馈'}
+            </button>
+            <button className="secondary-btn" onClick={handleSubmitPractice} disabled={isLoading}>
+              <ClipboardPen size={18} />
+              提交为练习作业
+            </button>
+          </div>
         </section>
         <aside className="side-pane ai-result">
-          <p className="eyebrow">Provider Plan</p>
-          <h2>模型接入方式</h2>
-          <ul>
-            <li><CheckCircle2 size={16} /> DeepSeek API：高质量点评与评分</li>
-            <li><CheckCircle2 size={16} /> Ollama：本地隐私任务和低成本练习</li>
-            <li><CheckCircle2 size={16} /> 通义/智谱：备用供应商</li>
-          </ul>
-          <div className="mock-output">
-            <strong>反馈结果 · {provider}</strong>
-            <p>{feedback}</p>
+          <p className="eyebrow">Feedback</p>
+          <h2>AI 反馈</h2>
+          <div className="feedback-output">
+            {renderFeedback(feedback)}
           </div>
           <div className="mock-output subtle-output">
             <strong>提交状态</strong>
@@ -1032,6 +1036,109 @@ function AiWorkbench({ setView, currentUser }: { setView: (view: View) => void; 
       </div>
     </Screen>
   )
+}
+
+function renderFeedback(value: string) {
+  const normalizedValue = value
+    .replace(/\r/g, '')
+    .replace(/\s*---\s*/g, '\n\n')
+    .replace(/\s+(#{1,4}\s+)/g, '\n\n$1')
+    .replace(/\s+((?:[-*]|\d+\.)\s+\*\*)/g, '\n$1')
+    .replace(/\s+((?:[-*]|\d+\.)\s+[^#\n])/g, '\n$1')
+
+  return normalizedValue
+    .split(/\n{2,}/)
+    .flatMap((block, index) => renderFeedbackBlock(block, index))
+}
+
+function renderFeedbackBlock(block: string, blockIndex: number) {
+  const lines = block.split('\n').map((line) => line.trim()).filter(Boolean)
+  const nodes: React.ReactNode[] = []
+  let cursor = 0
+
+  while (cursor < lines.length) {
+    const line = lines[cursor]
+    const heading = line.match(/^#{1,4}\s+(.+)$/)
+    if (heading) {
+      nodes.push(<h3 key={`${blockIndex}-h-${cursor}`}>{renderInlineMarkdown(heading[1])}</h3>)
+      cursor += 1
+      continue
+    }
+
+    if (isTableLine(line)) {
+      const tableLines = []
+      while (cursor < lines.length && isTableLine(lines[cursor])) {
+        tableLines.push(lines[cursor])
+        cursor += 1
+      }
+      nodes.push(renderMarkdownTable(tableLines, `${blockIndex}-t-${cursor}`))
+      continue
+    }
+
+    if (/^(?:[-*]|\d+\.)\s+/.test(line)) {
+      const listLines = []
+      while (cursor < lines.length && /^(?:[-*]|\d+\.)\s+/.test(lines[cursor])) {
+        listLines.push(lines[cursor])
+        cursor += 1
+      }
+      nodes.push(
+        <ul key={`${blockIndex}-ul-${cursor}`}>
+          {listLines.map((item) => (
+            <li key={item}>{renderInlineMarkdown(item.replace(/^(?:[-*]|\d+\.)\s+/, ''))}</li>
+          ))}
+        </ul>
+      )
+      continue
+    }
+
+    nodes.push(<p key={`${blockIndex}-p-${cursor}`}>{renderInlineMarkdown(line.replace(/^>\s*/, ''))}</p>)
+    cursor += 1
+  }
+
+  return nodes
+}
+
+function isTableLine(line: string) {
+  return line.startsWith('|') && line.endsWith('|') && line.split('|').length >= 4
+}
+
+function renderMarkdownTable(lines: string[], key: string) {
+  const rows = lines
+    .filter((line) => !/^\|?[\s|:-]+\|?$/.test(line))
+    .map((line) => line.split('|').slice(1, -1).map((cell) => cell.trim()))
+    .filter((row) => row.some(Boolean))
+
+  if (!rows.length) return null
+  const [header, ...body] = rows
+  return (
+    <div className="feedback-table-wrap" key={key}>
+      <table className="feedback-table">
+        <thead>
+          <tr>
+            {header.map((cell, index) => <th key={`${cell}-${index}`}>{renderInlineMarkdown(cell)}</th>)}
+          </tr>
+        </thead>
+        <tbody>
+          {body.map((row, rowIndex) => (
+            <tr key={row.join('-') || rowIndex}>
+              {row.map((cell, cellIndex) => <td key={`${rowIndex}-${cellIndex}`}>{renderInlineMarkdown(cell)}</td>)}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
+function renderInlineMarkdown(value: string) {
+  const parts = value.replace(/<br\s*\/?>/gi, '\n').split(/(\*\*[^*]+\*\*|\n)/g)
+  return parts.map((part, index) => {
+    if (part === '\n') return <br key={index} />
+    if (part.startsWith('**') && part.endsWith('**')) {
+      return <strong key={index}>{part.slice(2, -2)}</strong>
+    }
+    return part
+  })
 }
 
 function MaterialsView({ setView, currentUser }: { setView: (view: View) => void; currentUser: UserProfile | null }) {
