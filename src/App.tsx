@@ -44,6 +44,17 @@ type View = 'home' | 'learn' | 'teacher' | 'ai' | 'game' | string
 
 const moduleColors = ['#d8a650', '#9f4146', '#2d6574', '#6b705c', '#5b5b9a', '#9a6a4a']
 
+function viewFromLocation() {
+  const hashView = window.location.hash.replace(/^#\/?/, '').trim()
+  if (hashView) return hashView
+  const pathView = window.location.pathname.replace(/^\/+/, '').trim()
+  return pathView || 'home'
+}
+
+function hashForView(view: View) {
+  return view === 'home' ? '#' : `#/${view}`
+}
+
 const graphLayout: Record<string, { x: number; y: number; group: string }> = {
   equivalence: { x: 70, y: 210, group: '理论基础' },
   corpus: { x: 70, y: 340, group: '理论基础' },
@@ -92,7 +103,7 @@ const defaultKnowledgeEdges: KnowledgeEdgePayload[] = [
 ]
 
 function App() {
-  const [view, setView] = useState<View>('home')
+  const [view, setView] = useState<View>(() => viewFromLocation())
   const [selectedKnowledge, setSelectedKnowledge] = useState(knowledgePoints[0].id)
   const [courseWeeks, setCourseWeeks] = useState<CourseWeekPayload[]>(weeks)
   const [courseKnowledge, setCourseKnowledge] = useState<KnowledgePointPayload[]>(knowledgePoints)
@@ -106,6 +117,14 @@ function App() {
   const activeLesson = useMemo(() => lessons.find((lesson) => lesson.slug === view), [view])
   const activeFeature = useMemo(() => featurePages.find((feature) => feature.slug === view), [view])
   const selectedPoint = courseKnowledge.find((item) => item.id === selectedKnowledge) ?? courseKnowledge[0] ?? knowledgePoints[0]
+
+  function navigateView(nextView: View) {
+    setView(nextView)
+    const nextHash = hashForView(nextView)
+    if (window.location.hash !== nextHash) {
+      window.location.hash = nextHash
+    }
+  }
 
   async function refreshContent() {
     try {
@@ -124,6 +143,14 @@ function App() {
   }, [])
 
   useEffect(() => {
+    function handleHashChange() {
+      setView(viewFromLocation())
+    }
+    window.addEventListener('hashchange', handleHashChange)
+    return () => window.removeEventListener('hashchange', handleHashChange)
+  }, [])
+
+  useEffect(() => {
     if (!courseKnowledge.some((point) => point.id === selectedKnowledge) && courseKnowledge[0]) {
       setSelectedKnowledge(courseKnowledge[0].id)
     }
@@ -131,13 +158,13 @@ function App() {
 
   return (
     <main className="app-shell">
-      <TopNav setView={setView} />
+      <TopNav setView={navigateView} />
       <AnimatePresence mode="wait">
-        {view === 'home' && <HomeView key="home" setView={setView} courseWeeks={courseWeeks} />}
+        {view === 'home' && <HomeView key="home" setView={navigateView} courseWeeks={courseWeeks} />}
         {view === 'learn' && (
           <StudentView
             key="learn"
-            setView={setView}
+            setView={navigateView}
             selectedKnowledge={selectedKnowledge}
             setSelectedKnowledge={setSelectedKnowledge}
             selectedPoint={selectedPoint}
@@ -150,7 +177,7 @@ function App() {
         {view === 'teacher' && (
           <TeacherView
             key="teacher"
-            setView={setView}
+            setView={navigateView}
             courseWeeks={courseWeeks}
             knowledge={courseKnowledge}
             edges={courseEdges}
@@ -161,11 +188,11 @@ function App() {
             setCourseEdges={setCourseEdges}
           />
         )}
-        {view === 'ai' && <AiWorkbench key="ai" setView={setView} currentUser={currentUser} />}
-        {view === 'materials' && <MaterialsView key="materials" setView={setView} currentUser={currentUser} />}
-        {view === 'game' && <GameLocalizationView key="game" setView={setView} />}
-        {activeLesson && <LessonView key={activeLesson.slug} lesson={activeLesson} setView={setView} />}
-        {activeFeature && <FeaturePageView key={activeFeature.slug} feature={activeFeature} setView={setView} />}
+        {view === 'ai' && <AiWorkbench key="ai" setView={navigateView} currentUser={currentUser} />}
+        {view === 'materials' && <MaterialsView key="materials" setView={navigateView} currentUser={currentUser} />}
+        {view === 'game' && <GameLocalizationView key="game" setView={navigateView} />}
+        {activeLesson && <LessonView key={activeLesson.slug} lesson={activeLesson} setView={navigateView} />}
+        {activeFeature && <FeaturePageView key={activeFeature.slug} feature={activeFeature} setView={navigateView} />}
       </AnimatePresence>
     </main>
   )
