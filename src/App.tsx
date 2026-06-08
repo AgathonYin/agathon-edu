@@ -22,6 +22,51 @@ type View = 'home' | 'learn' | 'teacher' | 'ai' | 'game' | string
 
 const moduleColors = ['#d8a650', '#9f4146', '#2d6574', '#6b705c', '#5b5b9a', '#9a6a4a']
 
+const graphLayout: Record<string, { x: number; y: number; group: string }> = {
+  equivalence: { x: 70, y: 210, group: '理论基础' },
+  corpus: { x: 70, y: 340, group: '理论基础' },
+  register: { x: 240, y: 160, group: '语体转换' },
+  keigo: { x: 240, y: 290, group: '语体转换' },
+  'speech-structure': { x: 240, y: 420, group: '语体转换' },
+  'game-ui': { x: 430, y: 120, group: '本地化' },
+  transcreation: { x: 430, y: 250, group: '本地化' },
+  'cat-workflow': { x: 430, y: 380, group: '本地化' },
+  'seo-copy': { x: 620, y: 110, group: '商业传播' },
+  'brand-voice': { x: 620, y: 240, group: '商业传播' },
+  'ecommerce-copy': { x: 620, y: 370, group: '商业传播' },
+  'tourism-perspective': { x: 780, y: 190, group: '公共传播' },
+  'news-5w1h': { x: 780, y: 330, group: '公共传播' },
+  terminology: { x: 970, y: 120, group: '专业文体' },
+  mtpe: { x: 970, y: 250, group: '专业文体' },
+  'interval-boundary': { x: 970, y: 380, group: '专业文体' },
+  'business-format': { x: 1160, y: 170, group: '高风险文本' },
+  'legal-conditions': { x: 1160, y: 310, group: '高风险文本' },
+  'deemed-presumed': { x: 1160, y: 440, group: '高风险文本' },
+}
+
+const knowledgeEdges = [
+  ['equivalence', 'register'],
+  ['equivalence', 'corpus'],
+  ['register', 'keigo'],
+  ['register', 'speech-structure'],
+  ['register', 'brand-voice'],
+  ['keigo', 'business-format'],
+  ['corpus', 'cat-workflow'],
+  ['game-ui', 'transcreation'],
+  ['game-ui', 'cat-workflow'],
+  ['transcreation', 'seo-copy'],
+  ['cat-workflow', 'mtpe'],
+  ['seo-copy', 'brand-voice'],
+  ['brand-voice', 'ecommerce-copy'],
+  ['brand-voice', 'tourism-perspective'],
+  ['tourism-perspective', 'news-5w1h'],
+  ['terminology', 'mtpe'],
+  ['mtpe', 'business-format'],
+  ['business-format', 'legal-conditions'],
+  ['legal-conditions', 'interval-boundary'],
+  ['legal-conditions', 'deemed-presumed'],
+]
+
 function App() {
   const [view, setView] = useState<View>('home')
   const [selectedKnowledge, setSelectedKnowledge] = useState(knowledgePoints[0].id)
@@ -223,20 +268,7 @@ function StudentView({
             <p className="eyebrow">Knowledge Graph</p>
             <h2>知识点图谱</h2>
           </div>
-          <div className="knowledge-map">
-            {knowledgePoints.map((point, index) => (
-              <button
-                key={point.id}
-                className={`knowledge-node ${selectedKnowledge === point.id ? 'active' : ''}`}
-                style={{ ['--node-color' as string]: moduleColors[index % moduleColors.length] }}
-                onClick={() => setSelectedKnowledge(point.id)}
-              >
-                <span>{point.module.slice(0, 1)}</span>
-                <strong>W{point.week}</strong>
-                <small>{point.mastery}%</small>
-              </button>
-            ))}
-          </div>
+          <KnowledgeGraph selectedKnowledge={selectedKnowledge} setSelectedKnowledge={setSelectedKnowledge} />
           <article className="detail-panel">
             <span className="pill">{selectedPoint.module}</span>
             <h3>{selectedPoint.title}</h3>
@@ -269,6 +301,81 @@ function StudentView({
         </aside>
       </div>
     </Screen>
+  )
+}
+
+function KnowledgeGraph({
+  selectedKnowledge,
+  setSelectedKnowledge,
+}: {
+  selectedKnowledge: string
+  setSelectedKnowledge: (id: string) => void
+}) {
+  const layoutPoints = knowledgePoints.filter((point) => graphLayout[point.id])
+  const selected = knowledgePoints.find((point) => point.id === selectedKnowledge)
+  const selectedNeighbors = new Set(
+    knowledgeEdges
+      .filter(([from, to]) => from === selectedKnowledge || to === selectedKnowledge)
+      .flat(),
+  )
+
+  return (
+    <div className="knowledge-graph-shell">
+      <div className="graph-stage">
+        <svg className="knowledge-graph" viewBox="0 0 1240 520" role="img" aria-label="课程知识点关系图谱">
+          <defs>
+            <marker id="arrow-head" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M 0 0 L 10 5 L 0 10 z" />
+            </marker>
+          </defs>
+          {['理论基础', '语体转换', '本地化', '商业传播', '公共传播', '专业文体', '高风险文本'].map((group, index) => (
+            <g className="graph-band" key={group}>
+              <rect x={18 + index * 173} y="24" width="142" height="466" rx="10" />
+              <text x={30 + index * 173} y="52">{group}</text>
+            </g>
+          ))}
+          {knowledgeEdges.map(([from, to]) => {
+            const source = graphLayout[from]
+            const target = graphLayout[to]
+            if (!source || !target) return null
+            const isActive = selectedNeighbors.has(from) && selectedNeighbors.has(to)
+            return (
+              <path
+                className={`graph-edge ${isActive ? 'active' : ''}`}
+                key={`${from}-${to}`}
+                d={`M ${source.x + 46} ${source.y} C ${source.x + 90} ${source.y}, ${target.x - 90} ${target.y}, ${target.x - 46} ${target.y}`}
+              />
+            )
+          })}
+          {layoutPoints.map((point, index) => {
+            const pos = graphLayout[point.id]
+            const isActive = point.id === selectedKnowledge
+            const isNeighbor = selectedNeighbors.has(point.id)
+            return (
+              <g
+                className={`graph-node ${isActive ? 'active' : ''} ${isNeighbor ? 'neighbor' : ''}`}
+                key={point.id}
+                onClick={() => setSelectedKnowledge(point.id)}
+                onKeyDown={(event) => event.key === 'Enter' && setSelectedKnowledge(point.id)}
+                role="button"
+                tabIndex={0}
+                style={{ ['--node-color' as string]: moduleColors[index % moduleColors.length] }}
+              >
+                <circle cx={pos.x} cy={pos.y} r="42" />
+                <text className="node-week" x={pos.x} y={pos.y - 8}>W{point.week}</text>
+                <text className="node-title" x={pos.x} y={pos.y + 14}>{point.title.slice(0, 6)}</text>
+                <text className="node-score" x={pos.x} y={pos.y + 32}>{point.mastery}%</text>
+              </g>
+            )
+          })}
+        </svg>
+      </div>
+      <div className="graph-legend">
+        <span><i className="legend-dot active-dot" />当前节点</span>
+        <span><i className="legend-line" />前置/后续关系</span>
+        <span>{selected ? `${selected.title}：${selected.tags.join(' / ')}` : '选择一个节点查看关系'}</span>
+      </div>
+    </div>
   )
 }
 
