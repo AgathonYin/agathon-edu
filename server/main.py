@@ -1,3 +1,4 @@
+import asyncio
 import os
 import uuid
 from datetime import datetime, timezone
@@ -131,10 +132,13 @@ async def startup() -> None:
     if not database_url:
         return
 
-    try:
-        db_pool = await asyncpg.create_pool(database_url, min_size=1, max_size=5)
-    except Exception:
-        db_pool = None
+    for _ in range(20):
+        try:
+            db_pool = await asyncpg.create_pool(database_url, min_size=1, max_size=5)
+            return
+        except Exception:
+            await asyncio.sleep(1)
+    db_pool = None
 
 
 @app.on_event("shutdown")
