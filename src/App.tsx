@@ -39,6 +39,7 @@ import {
   type UserProfile,
 } from './api'
 import { featurePages, gameCases, knowledgePoints, lessons, weeks, type FeaturePage, type Lesson } from './courseData'
+import { lessonEnrichment } from './lessonEnrichment'
 
 type View = 'home' | 'learn' | 'teacher' | 'ai' | 'game' | string
 
@@ -1288,6 +1289,7 @@ function MaterialsView({ setView, currentUser }: { setView: (view: View) => void
 function LessonView({ lesson, setView }: { lesson: Lesson; setView: (view: View) => void }) {
   const [tab, setTab] = useState(lesson.tabs[0].id)
   const active = lesson.tabs.find((item) => item.id === tab) ?? lesson.tabs[0]
+  const enrichmentBlocks = lessonEnrichment[lesson.slug]?.[active.id] ?? []
 
   return (
     <Screen className="lesson-view">
@@ -1306,10 +1308,26 @@ function LessonView({ lesson, setView }: { lesson: Lesson; setView: (view: View)
       </div>
       <article className="lesson-card">
         <h2>{active.heading}</h2>
-        {active.body.map((paragraph) => (
-          <p key={paragraph}>{paragraph}</p>
-        ))}
+        <div className="lesson-paragraphs">
+          {active.body.map((paragraph) => (
+            <p key={paragraph}>{paragraph}</p>
+          ))}
+        </div>
         {active.callout && <div className="callout">{active.callout}</div>}
+        {enrichmentBlocks.length > 0 && (
+          <div className="lesson-deep-blocks">
+            {enrichmentBlocks.map((block) => (
+              <section className="lesson-deep-block" key={block.title}>
+                <h3>{block.title}</h3>
+                <ul>
+                  {block.lines.map((line) => (
+                    <li key={line}>{line}</li>
+                  ))}
+                </ul>
+              </section>
+            ))}
+          </div>
+        )}
       </article>
     </Screen>
   )
