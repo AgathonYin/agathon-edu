@@ -15,8 +15,30 @@ create table if not exists knowledge_points (
   module text not null,
   week int not null,
   tags text[] not null default '{}',
+  mastery int not null default 0 check (mastery >= 0 and mastery <= 100),
   description text not null,
   created_at timestamptz not null default now()
+);
+
+create table if not exists course_weeks (
+  id int primary key,
+  module text not null,
+  mode text not null,
+  title text not null,
+  summary text not null,
+  route text,
+  status text not null default 'planned' check (status in ('ready', 'planned')),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create table if not exists knowledge_edges (
+  id uuid primary key default gen_random_uuid(),
+  source_id text not null references knowledge_points(id) on delete cascade,
+  target_id text not null references knowledge_points(id) on delete cascade,
+  label text,
+  created_at timestamptz not null default now(),
+  unique (source_id, target_id)
 );
 
 create table if not exists lessons (
@@ -84,6 +106,9 @@ create table if not exists web_contents (
 );
 
 create index if not exists idx_knowledge_points_module on knowledge_points(module);
+create index if not exists idx_course_weeks_status on course_weeks(status);
+create index if not exists idx_knowledge_edges_source on knowledge_edges(source_id);
+create index if not exists idx_knowledge_edges_target on knowledge_edges(target_id);
 create index if not exists idx_exercises_knowledge_point on exercises(knowledge_point_id);
 create index if not exists idx_submissions_student on submissions(student_id);
 create index if not exists idx_submissions_exercise on submissions(exercise_id);

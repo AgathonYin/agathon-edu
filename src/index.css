@@ -643,6 +643,92 @@ h3 {
   margin-top: 18px;
 }
 
+.admin-console {
+  margin-top: 18px;
+}
+
+.admin-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.admin-actions span {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.admin-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.admin-panel {
+  display: grid;
+  gap: 12px;
+  align-content: start;
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.78);
+}
+
+.admin-panel h3 {
+  font-size: 20px;
+}
+
+.admin-panel input,
+.admin-panel select,
+.admin-panel textarea {
+  width: 100%;
+  min-height: 38px;
+  padding: 9px 11px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  color: var(--ink);
+  background: white;
+  outline: none;
+}
+
+.admin-panel textarea {
+  min-height: 118px;
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.edge-list {
+  display: grid;
+  gap: 8px;
+  max-height: 250px;
+  overflow: auto;
+}
+
+.edge-list button {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 18px minmax(0, 1fr);
+  gap: 8px;
+  align-items: center;
+  padding: 9px;
+  border: 1px solid rgba(23, 32, 44, 0.1);
+  border-radius: 6px;
+  background: rgba(247, 241, 230, 0.72);
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.edge-list span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .teacher-card {
   padding: 20px;
 }
@@ -864,7 +950,8 @@ textarea {
 
   .week-grid,
   .teacher-grid,
-  .feature-grid {
+  .feature-grid,
+  .admin-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
@@ -893,9 +980,11 @@ textarea {
 
   .metric-grid,
   .stat-strip,
-  .week-grid,
-  .teacher-grid,
-  .feature-grid {
+    .week-grid,
+    .teacher-grid,
+  .feature-grid,
+  .admin-grid,
+  .form-grid {
     grid-template-columns: 1fr;
   }
 

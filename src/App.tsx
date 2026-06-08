@@ -15,7 +15,22 @@ import {
   WandSparkles,
 } from 'lucide-react'
 import { AnimatePresence, motion } from 'framer-motion'
-import { createSubmission, fetchTeacherSummary, requestAiFeedback, type AiMode, type TeacherSummary } from './api'
+import {
+  createSubmission,
+  deleteKnowledgeEdge,
+  fetchContent,
+  fetchTeacherSummary,
+  importContent,
+  requestAiFeedback,
+  saveCourseWeek,
+  saveKnowledgeEdge,
+  saveKnowledgePoint,
+  type AiMode,
+  type CourseWeekPayload,
+  type KnowledgeEdgePayload,
+  type KnowledgePointPayload,
+  type TeacherSummary,
+} from './api'
 import { featurePages, gameCases, knowledgePoints, lessons, weeks, type FeaturePage, type Lesson } from './courseData'
 
 type View = 'home' | 'learn' | 'teacher' | 'ai' | 'game' | string
@@ -44,42 +59,70 @@ const graphLayout: Record<string, { x: number; y: number; group: string }> = {
   'deemed-presumed': { x: 1160, y: 440, group: '高风险文本' },
 }
 
-const knowledgeEdges = [
-  ['equivalence', 'register'],
-  ['equivalence', 'corpus'],
-  ['register', 'keigo'],
-  ['register', 'speech-structure'],
-  ['register', 'brand-voice'],
-  ['keigo', 'business-format'],
-  ['corpus', 'cat-workflow'],
-  ['game-ui', 'transcreation'],
-  ['game-ui', 'cat-workflow'],
-  ['transcreation', 'seo-copy'],
-  ['cat-workflow', 'mtpe'],
-  ['seo-copy', 'brand-voice'],
-  ['brand-voice', 'ecommerce-copy'],
-  ['brand-voice', 'tourism-perspective'],
-  ['tourism-perspective', 'news-5w1h'],
-  ['terminology', 'mtpe'],
-  ['mtpe', 'business-format'],
-  ['business-format', 'legal-conditions'],
-  ['legal-conditions', 'interval-boundary'],
-  ['legal-conditions', 'deemed-presumed'],
+const graphGroups = ['理论基础', '语体转换', '本地化', '商业传播', '公共传播', '专业文体', '高风险文本']
+
+const defaultKnowledgeEdges: KnowledgeEdgePayload[] = [
+  { source_id: 'equivalence', target_id: 'register' },
+  { source_id: 'equivalence', target_id: 'corpus' },
+  { source_id: 'register', target_id: 'keigo' },
+  { source_id: 'register', target_id: 'speech-structure' },
+  { source_id: 'register', target_id: 'brand-voice' },
+  { source_id: 'keigo', target_id: 'business-format' },
+  { source_id: 'corpus', target_id: 'cat-workflow' },
+  { source_id: 'game-ui', target_id: 'transcreation' },
+  { source_id: 'game-ui', target_id: 'cat-workflow' },
+  { source_id: 'transcreation', target_id: 'seo-copy' },
+  { source_id: 'cat-workflow', target_id: 'mtpe' },
+  { source_id: 'seo-copy', target_id: 'brand-voice' },
+  { source_id: 'brand-voice', target_id: 'ecommerce-copy' },
+  { source_id: 'brand-voice', target_id: 'tourism-perspective' },
+  { source_id: 'tourism-perspective', target_id: 'news-5w1h' },
+  { source_id: 'terminology', target_id: 'mtpe' },
+  { source_id: 'mtpe', target_id: 'business-format' },
+  { source_id: 'business-format', target_id: 'legal-conditions' },
+  { source_id: 'legal-conditions', target_id: 'interval-boundary' },
+  { source_id: 'legal-conditions', target_id: 'deemed-presumed' },
 ]
 
 function App() {
   const [view, setView] = useState<View>('home')
   const [selectedKnowledge, setSelectedKnowledge] = useState(knowledgePoints[0].id)
+  const [courseWeeks, setCourseWeeks] = useState<CourseWeekPayload[]>(weeks)
+  const [courseKnowledge, setCourseKnowledge] = useState<KnowledgePointPayload[]>(knowledgePoints)
+  const [courseEdges, setCourseEdges] = useState<KnowledgeEdgePayload[]>(defaultKnowledgeEdges)
+  const [contentState, setContentState] = useState('使用本地课程数据')
 
   const activeLesson = useMemo(() => lessons.find((lesson) => lesson.slug === view), [view])
   const activeFeature = useMemo(() => featurePages.find((feature) => feature.slug === view), [view])
-  const selectedPoint = knowledgePoints.find((item) => item.id === selectedKnowledge) ?? knowledgePoints[0]
+  const selectedPoint = courseKnowledge.find((item) => item.id === selectedKnowledge) ?? courseKnowledge[0] ?? knowledgePoints[0]
+
+  async function refreshContent() {
+    try {
+      const content = await fetchContent()
+      if (content.weeks.length) setCourseWeeks(content.weeks)
+      if (content.knowledge_points.length) setCourseKnowledge(content.knowledge_points)
+      if (content.knowledge_edges.length) setCourseEdges(content.knowledge_edges)
+      setContentState(content.knowledge_points.length ? '已连接课程数据库' : '课程数据库为空，可一键同步本地课程')
+    } catch {
+      setContentState('后端未连接，使用本地课程数据')
+    }
+  }
+
+  useEffect(() => {
+    refreshContent()
+  }, [])
+
+  useEffect(() => {
+    if (!courseKnowledge.some((point) => point.id === selectedKnowledge) && courseKnowledge[0]) {
+      setSelectedKnowledge(courseKnowledge[0].id)
+    }
+  }, [courseKnowledge, selectedKnowledge])
 
   return (
     <main className="app-shell">
       <TopNav setView={setView} />
       <AnimatePresence mode="wait">
-        {view === 'home' && <HomeView key="home" setView={setView} />}
+        {view === 'home' && <HomeView key="home" setView={setView} courseWeeks={courseWeeks} />}
         {view === 'learn' && (
           <StudentView
             key="learn"
@@ -87,9 +130,24 @@ function App() {
             selectedKnowledge={selectedKnowledge}
             setSelectedKnowledge={setSelectedKnowledge}
             selectedPoint={selectedPoint}
+            knowledge={courseKnowledge}
+            edges={courseEdges}
           />
         )}
-        {view === 'teacher' && <TeacherView key="teacher" setView={setView} />}
+        {view === 'teacher' && (
+          <TeacherView
+            key="teacher"
+            setView={setView}
+            courseWeeks={courseWeeks}
+            knowledge={courseKnowledge}
+            edges={courseEdges}
+            contentState={contentState}
+            refreshContent={refreshContent}
+            setCourseWeeks={setCourseWeeks}
+            setCourseKnowledge={setCourseKnowledge}
+            setCourseEdges={setCourseEdges}
+          />
+        )}
         {view === 'ai' && <AiWorkbench key="ai" setView={setView} />}
         {view === 'game' && <GameLocalizationView key="game" setView={setView} />}
         {activeLesson && <LessonView key={activeLesson.slug} lesson={activeLesson} setView={setView} />}
@@ -141,7 +199,7 @@ function Screen({ children, className = '' }: { children: React.ReactNode; class
   )
 }
 
-function HomeView({ setView }: { setView: (view: View) => void }) {
+function HomeView({ setView, courseWeeks }: { setView: (view: View) => void; courseWeeks: CourseWeekPayload[] }) {
   return (
     <Screen className="home-view">
       <section className="hero-band">
@@ -201,7 +259,7 @@ function HomeView({ setView }: { setView: (view: View) => void }) {
           <h2>课程大纲</h2>
         </div>
         <div className="week-grid">
-          {weeks.map((week) => (
+          {courseWeeks.map((week) => (
             <button
               className={`week-card ${week.status === 'ready' ? 'ready' : ''}`}
               key={week.id}
@@ -235,11 +293,15 @@ function StudentView({
   selectedKnowledge,
   setSelectedKnowledge,
   selectedPoint,
+  knowledge,
+  edges,
 }: {
   setView: (view: View) => void
   selectedKnowledge: string
   setSelectedKnowledge: (id: string) => void
-  selectedPoint: (typeof knowledgePoints)[number]
+  selectedPoint: KnowledgePointPayload
+  knowledge: KnowledgePointPayload[]
+  edges: KnowledgeEdgePayload[]
 }) {
   return (
     <Screen className="workspace-view">
@@ -268,13 +330,13 @@ function StudentView({
             <p className="eyebrow">Knowledge Graph</p>
             <h2>知识点图谱</h2>
           </div>
-          <KnowledgeGraph selectedKnowledge={selectedKnowledge} setSelectedKnowledge={setSelectedKnowledge} />
+          <KnowledgeGraph knowledge={knowledge} edges={edges} selectedKnowledge={selectedKnowledge} setSelectedKnowledge={setSelectedKnowledge} />
           <article className="detail-panel">
             <span className="pill">{selectedPoint.module}</span>
             <h3>{selectedPoint.title}</h3>
             <p>{selectedPoint.description}</p>
             <div className="tag-row">
-              {selectedPoint.tags.map((tag) => (
+            {selectedPoint.tags.map((tag) => (
                 <span key={tag}>{tag}</span>
               ))}
             </div>
@@ -290,7 +352,7 @@ function StudentView({
             <h2>个性化学习路径</h2>
           </div>
           <div className="path-list">
-            {knowledgePoints.slice(0, 5).map((point, index) => (
+            {knowledge.slice(0, 5).map((point, index) => (
               <button key={point.id} onClick={() => setSelectedKnowledge(point.id)}>
                 <span>{index + 1}</span>
                 <strong>{point.title}</strong>
@@ -305,18 +367,22 @@ function StudentView({
 }
 
 function KnowledgeGraph({
+  knowledge,
+  edges,
   selectedKnowledge,
   setSelectedKnowledge,
 }: {
+  knowledge: KnowledgePointPayload[]
+  edges: KnowledgeEdgePayload[]
   selectedKnowledge: string
   setSelectedKnowledge: (id: string) => void
 }) {
-  const layoutPoints = knowledgePoints.filter((point) => graphLayout[point.id])
-  const selected = knowledgePoints.find((point) => point.id === selectedKnowledge)
+  const positions = useMemo(() => buildGraphPositions(knowledge), [knowledge])
+  const selected = knowledge.find((point) => point.id === selectedKnowledge)
   const selectedNeighbors = new Set(
-    knowledgeEdges
-      .filter(([from, to]) => from === selectedKnowledge || to === selectedKnowledge)
-      .flat(),
+    edges
+      .filter((edge) => edge.source_id === selectedKnowledge || edge.target_id === selectedKnowledge)
+      .flatMap((edge) => [edge.source_id, edge.target_id]),
   )
 
   return (
@@ -328,27 +394,28 @@ function KnowledgeGraph({
               <path d="M 0 0 L 10 5 L 0 10 z" />
             </marker>
           </defs>
-          {['理论基础', '语体转换', '本地化', '商业传播', '公共传播', '专业文体', '高风险文本'].map((group, index) => (
+          {graphGroups.map((group, index) => (
             <g className="graph-band" key={group}>
               <rect x={18 + index * 173} y="24" width="142" height="466" rx="10" />
               <text x={30 + index * 173} y="52">{group}</text>
             </g>
           ))}
-          {knowledgeEdges.map(([from, to]) => {
-            const source = graphLayout[from]
-            const target = graphLayout[to]
+          {edges.map((edge) => {
+            const source = positions[edge.source_id]
+            const target = positions[edge.target_id]
             if (!source || !target) return null
-            const isActive = selectedNeighbors.has(from) && selectedNeighbors.has(to)
+            const isActive = selectedNeighbors.has(edge.source_id) && selectedNeighbors.has(edge.target_id)
             return (
               <path
                 className={`graph-edge ${isActive ? 'active' : ''}`}
-                key={`${from}-${to}`}
+                key={`${edge.source_id}-${edge.target_id}`}
                 d={`M ${source.x + 46} ${source.y} C ${source.x + 90} ${source.y}, ${target.x - 90} ${target.y}, ${target.x - 46} ${target.y}`}
               />
             )
           })}
-          {layoutPoints.map((point, index) => {
-            const pos = graphLayout[point.id]
+          {knowledge.map((point, index) => {
+            const pos = positions[point.id]
+            if (!pos) return null
             const isActive = point.id === selectedKnowledge
             const isNeighbor = selectedNeighbors.has(point.id)
             return (
@@ -379,7 +446,57 @@ function KnowledgeGraph({
   )
 }
 
-function TeacherView({ setView }: { setView: (view: View) => void }) {
+function buildGraphPositions(points: KnowledgePointPayload[]) {
+  const counters: Record<string, number> = {}
+  return points.reduce<Record<string, { x: number; y: number; group: string }>>((positions, point) => {
+    if (graphLayout[point.id]) {
+      positions[point.id] = graphLayout[point.id]
+      return positions
+    }
+    const group = groupForModule(point.module)
+    const groupIndex = Math.max(graphGroups.indexOf(group), 0)
+    const slot = counters[group] ?? 0
+    counters[group] = slot + 1
+    positions[point.id] = {
+      x: 70 + groupIndex * 173,
+      y: 118 + (slot % 4) * 105,
+      group,
+    }
+    return positions
+  }, {})
+}
+
+function groupForModule(module: string) {
+  if (module.includes('导论')) return '理论基础'
+  if (module.includes('社交') || module.includes('致辞')) return '语体转换'
+  if (module.includes('网络') || module.includes('游戏')) return '本地化'
+  if (module.includes('广告') || module.includes('营销')) return '商业传播'
+  if (module.includes('旅游') || module.includes('新闻')) return '公共传播'
+  if (module.includes('科技')) return '专业文体'
+  return '高风险文本'
+}
+
+function TeacherView({
+  setView,
+  courseWeeks,
+  knowledge,
+  edges,
+  contentState,
+  refreshContent,
+  setCourseWeeks,
+  setCourseKnowledge,
+  setCourseEdges,
+}: {
+  setView: (view: View) => void
+  courseWeeks: CourseWeekPayload[]
+  knowledge: KnowledgePointPayload[]
+  edges: KnowledgeEdgePayload[]
+  contentState: string
+  refreshContent: () => Promise<void>
+  setCourseWeeks: React.Dispatch<React.SetStateAction<CourseWeekPayload[]>>
+  setCourseKnowledge: React.Dispatch<React.SetStateAction<KnowledgePointPayload[]>>
+  setCourseEdges: React.Dispatch<React.SetStateAction<KnowledgeEdgePayload[]>>
+}) {
   const [summary, setSummary] = useState<TeacherSummary>({
     students: 0,
     submissions: 0,
@@ -433,7 +550,7 @@ function TeacherView({ setView }: { setView: (view: View) => void }) {
       <div className="teacher-grid">
         <TeacherCard icon={<ClipboardPen />} title="作业提交" value={`${summary.submissions} 份`} text={`待复评 ${summary.pending_reviews} 份，学生端提交后可自动进入 AI 初评。`} />
         <TeacherCard icon={<LineChart />} title="学情分析" value={`${summary.average_score || '--'} 分`} text={syncState} />
-        <TeacherCard icon={<FileText />} title="课程内容" value="16 周" text="课程页、知识点、练习库已拆为可维护数据结构。" />
+        <TeacherCard icon={<FileText />} title="课程内容" value={`${courseWeeks.length} 周`} text={contentState} />
         <TeacherCard icon={<WandSparkles />} title="AI 批改" value="DeepSeek/Ollama" text="统一 AI Provider，支持国产模型和本地模型切换。" />
       </div>
       <div className="two-column teacher-detail">
@@ -468,8 +585,200 @@ function TeacherView({ setView }: { setView: (view: View) => void }) {
           </div>
         </aside>
       </div>
+      <ContentAdmin
+        courseWeeks={courseWeeks}
+        knowledge={knowledge}
+        edges={edges}
+        refreshContent={refreshContent}
+        setCourseWeeks={setCourseWeeks}
+        setCourseKnowledge={setCourseKnowledge}
+        setCourseEdges={setCourseEdges}
+      />
     </Screen>
   )
+}
+
+function ContentAdmin({
+  courseWeeks,
+  knowledge,
+  edges,
+  refreshContent,
+  setCourseWeeks,
+  setCourseKnowledge,
+  setCourseEdges,
+}: {
+  courseWeeks: CourseWeekPayload[]
+  knowledge: KnowledgePointPayload[]
+  edges: KnowledgeEdgePayload[]
+  refreshContent: () => Promise<void>
+  setCourseWeeks: React.Dispatch<React.SetStateAction<CourseWeekPayload[]>>
+  setCourseKnowledge: React.Dispatch<React.SetStateAction<KnowledgePointPayload[]>>
+  setCourseEdges: React.Dispatch<React.SetStateAction<KnowledgeEdgePayload[]>>
+}) {
+  const [weekForm, setWeekForm] = useState<CourseWeekPayload>(courseWeeks[0] ?? weeks[0])
+  const [pointForm, setPointForm] = useState<KnowledgePointPayload>(knowledge[0] ?? knowledgePoints[0])
+  const [edgeForm, setEdgeForm] = useState<KnowledgeEdgePayload>(edges[0] ?? defaultKnowledgeEdges[0])
+  const [state, setState] = useState('等待编辑')
+
+  useEffect(() => {
+    if (courseWeeks[0]) setWeekForm(courseWeeks[0])
+  }, [courseWeeks])
+
+  useEffect(() => {
+    if (knowledge[0]) setPointForm(knowledge[0])
+  }, [knowledge])
+
+  async function handleImportContent() {
+    setState('同步中...')
+    try {
+      const result = await importContent({
+        weeks,
+        knowledge_points: knowledgePoints,
+        knowledge_edges: defaultKnowledgeEdges,
+      })
+      await refreshContent()
+      setState(`已同步 ${result.weeks} 周、${result.knowledge_points} 个知识点、${result.knowledge_edges} 条关系`)
+    } catch {
+      setState('同步失败，请检查后端连接')
+    }
+  }
+
+  async function handleSaveWeek() {
+    setState('保存周次中...')
+    try {
+      const saved = await saveCourseWeek(weekForm)
+      setCourseWeeks((items) => upsertList(items, saved, 'id').sort((a, b) => a.id - b.id))
+      setState(`已保存第 ${saved.id} 周`)
+    } catch {
+      setState('保存周次失败')
+    }
+  }
+
+  async function handleSavePoint() {
+    setState('保存知识点中...')
+    try {
+      const saved = await saveKnowledgePoint(normalizePoint(pointForm))
+      setCourseKnowledge((items) => upsertList(items, saved, 'id').sort((a, b) => a.week - b.week))
+      setState(`已保存：${saved.title}`)
+    } catch {
+      setState('保存知识点失败')
+    }
+  }
+
+  async function handleSaveEdge() {
+    setState('保存图谱关系中...')
+    try {
+      const saved = await saveKnowledgeEdge(edgeForm)
+      setCourseEdges((items) => upsertEdge(items, saved))
+      setState(`已连接：${saved.source_id} -> ${saved.target_id}`)
+    } catch {
+      setState('保存关系失败，请确认两个知识点都存在')
+    }
+  }
+
+  async function handleDeleteEdge(edge: KnowledgeEdgePayload) {
+    setState('删除图谱关系中...')
+    try {
+      await deleteKnowledgeEdge(edge.source_id, edge.target_id)
+      setCourseEdges((items) => items.filter((item) => item.source_id !== edge.source_id || item.target_id !== edge.target_id))
+      setState(`已删除：${edge.source_id} -> ${edge.target_id}`)
+    } catch {
+      setState('删除关系失败')
+    }
+  }
+
+  return (
+    <section className="section-block admin-console">
+      <div className="section-heading">
+        <div>
+          <p className="eyebrow">Content Studio</p>
+          <h2>课程内容后台</h2>
+        </div>
+        <div className="admin-actions">
+          <span>{state}</span>
+          <button className="secondary-btn" onClick={refreshContent}>刷新内容</button>
+          <button className="primary-btn" onClick={handleImportContent}>同步本地课程到数据库</button>
+        </div>
+      </div>
+
+      <div className="admin-grid">
+        <article className="admin-panel">
+          <h3>课程周次</h3>
+          <select value={weekForm.id} onChange={(event) => setWeekForm(courseWeeks.find((item) => item.id === Number(event.target.value)) ?? weekForm)}>
+            {courseWeeks.map((week) => <option value={week.id} key={week.id}>第 {week.id} 周 · {week.title}</option>)}
+          </select>
+          <div className="form-grid">
+            <input value={weekForm.id} onChange={(event) => setWeekForm({ ...weekForm, id: Number(event.target.value) })} type="number" />
+            <input value={weekForm.module} onChange={(event) => setWeekForm({ ...weekForm, module: event.target.value })} placeholder="模块" />
+            <input value={weekForm.mode} onChange={(event) => setWeekForm({ ...weekForm, mode: event.target.value })} placeholder="教学模式" />
+            <select value={weekForm.status} onChange={(event) => setWeekForm({ ...weekForm, status: event.target.value as 'ready' | 'planned' })}>
+              <option value="ready">ready</option>
+              <option value="planned">planned</option>
+            </select>
+          </div>
+          <input value={weekForm.title} onChange={(event) => setWeekForm({ ...weekForm, title: event.target.value })} placeholder="标题" />
+          <textarea value={weekForm.summary} onChange={(event) => setWeekForm({ ...weekForm, summary: event.target.value })} />
+          <button className="primary-btn" onClick={handleSaveWeek}>保存周次</button>
+        </article>
+
+        <article className="admin-panel">
+          <h3>知识点</h3>
+          <select value={pointForm.id} onChange={(event) => setPointForm(knowledge.find((item) => item.id === event.target.value) ?? pointForm)}>
+            {knowledge.map((point) => <option value={point.id} key={point.id}>{point.week} · {point.title}</option>)}
+          </select>
+          <div className="form-grid">
+            <input value={pointForm.id} onChange={(event) => setPointForm({ ...pointForm, id: event.target.value })} placeholder="ID" />
+            <input value={pointForm.week} onChange={(event) => setPointForm({ ...pointForm, week: Number(event.target.value) })} type="number" />
+            <input value={pointForm.module} onChange={(event) => setPointForm({ ...pointForm, module: event.target.value })} placeholder="模块" />
+            <input value={pointForm.mastery} onChange={(event) => setPointForm({ ...pointForm, mastery: Number(event.target.value) })} type="number" min="0" max="100" />
+          </div>
+          <input value={pointForm.title} onChange={(event) => setPointForm({ ...pointForm, title: event.target.value })} placeholder="知识点标题" />
+          <input value={pointForm.tags.join('，')} onChange={(event) => setPointForm({ ...pointForm, tags: splitTags(event.target.value) })} placeholder="标签，用逗号分隔" />
+          <textarea value={pointForm.description} onChange={(event) => setPointForm({ ...pointForm, description: event.target.value })} />
+          <button className="primary-btn" onClick={handleSavePoint}>保存知识点</button>
+        </article>
+
+        <article className="admin-panel">
+          <h3>图谱关系</h3>
+          <div className="form-grid">
+            <select value={edgeForm.source_id} onChange={(event) => setEdgeForm({ ...edgeForm, source_id: event.target.value })}>
+              {knowledge.map((point) => <option value={point.id} key={point.id}>{point.title}</option>)}
+            </select>
+            <select value={edgeForm.target_id} onChange={(event) => setEdgeForm({ ...edgeForm, target_id: event.target.value })}>
+              {knowledge.map((point) => <option value={point.id} key={point.id}>{point.title}</option>)}
+            </select>
+          </div>
+          <input value={edgeForm.label ?? ''} onChange={(event) => setEdgeForm({ ...edgeForm, label: event.target.value })} placeholder="关系说明，可选" />
+          <button className="primary-btn" onClick={handleSaveEdge}>添加/更新关系</button>
+          <div className="edge-list">
+            {edges.slice(0, 12).map((edge) => (
+              <button key={`${edge.source_id}-${edge.target_id}`} onClick={() => handleDeleteEdge(edge)}>
+                <span>{edge.source_id}</span>
+                <strong>→</strong>
+                <span>{edge.target_id}</span>
+              </button>
+            ))}
+          </div>
+        </article>
+      </div>
+    </section>
+  )
+}
+
+function splitTags(value: string) {
+  return value.split(/[,，、]/).map((item) => item.trim()).filter(Boolean)
+}
+
+function normalizePoint(point: KnowledgePointPayload) {
+  return { ...point, mastery: Math.max(0, Math.min(100, Number(point.mastery) || 0)), week: Number(point.week) || 1 }
+}
+
+function upsertList<T extends Record<string, unknown>>(items: T[], item: T, key: keyof T) {
+  return [...items.filter((existing) => existing[key] !== item[key]), item]
+}
+
+function upsertEdge(items: KnowledgeEdgePayload[], item: KnowledgeEdgePayload) {
+  return [...items.filter((edge) => edge.source_id !== item.source_id || edge.target_id !== item.target_id), item]
 }
 
 function NetworkIcon() {

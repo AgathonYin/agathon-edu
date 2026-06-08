@@ -51,6 +51,38 @@ export type TeacherSummary = {
   }>
 }
 
+export type CourseWeekPayload = {
+  id: number
+  module: string
+  mode: string
+  title: string
+  summary: string
+  route?: string
+  status: 'ready' | 'planned'
+}
+
+export type KnowledgePointPayload = {
+  id: string
+  title: string
+  module: string
+  week: number
+  tags: string[]
+  mastery: number
+  description: string
+}
+
+export type KnowledgeEdgePayload = {
+  source_id: string
+  target_id: string
+  label?: string | null
+}
+
+export type CourseContent = {
+  weeks: CourseWeekPayload[]
+  knowledge_points: KnowledgePointPayload[]
+  knowledge_edges: KnowledgeEdgePayload[]
+}
+
 const baseUrl = import.meta.env.VITE_API_BASE_URL || ''
 
 export async function requestAiFeedback(payload: AiRequest): Promise<AiResponse> {
@@ -113,6 +145,72 @@ export async function createSubmission(payload: {
   })
   if (!response.ok) {
     throw new Error(`Submission failed: ${response.status}`)
+  }
+  return response.json()
+}
+
+export async function fetchContent(): Promise<CourseContent> {
+  const response = await fetch(`${baseUrl}/api/content`)
+  if (!response.ok) {
+    throw new Error(`Content failed: ${response.status}`)
+  }
+  return response.json()
+}
+
+export async function importContent(payload: CourseContent): Promise<{ ok: boolean; weeks: number; knowledge_points: number; knowledge_edges: number }> {
+  const response = await fetch(`${baseUrl}/api/content/import`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+  if (!response.ok) {
+    throw new Error(`Import content failed: ${response.status}`)
+  }
+  return response.json()
+}
+
+export async function saveCourseWeek(payload: CourseWeekPayload): Promise<CourseWeekPayload> {
+  const response = await fetch(`${baseUrl}/api/course-weeks`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+  if (!response.ok) {
+    throw new Error(`Save course week failed: ${response.status}`)
+  }
+  return response.json()
+}
+
+export async function saveKnowledgePoint(payload: KnowledgePointPayload): Promise<KnowledgePointPayload> {
+  const response = await fetch(`${baseUrl}/api/knowledge-points`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+  if (!response.ok) {
+    throw new Error(`Save knowledge point failed: ${response.status}`)
+  }
+  return response.json()
+}
+
+export async function saveKnowledgeEdge(payload: KnowledgeEdgePayload): Promise<KnowledgeEdgePayload> {
+  const response = await fetch(`${baseUrl}/api/knowledge-edges`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+  if (!response.ok) {
+    throw new Error(`Save knowledge edge failed: ${response.status}`)
+  }
+  return response.json()
+}
+
+export async function deleteKnowledgeEdge(sourceId: string, targetId: string): Promise<{ ok: boolean }> {
+  const response = await fetch(`${baseUrl}/api/knowledge-edges/${sourceId}/${targetId}`, {
+    method: 'DELETE',
+  })
+  if (!response.ok) {
+    throw new Error(`Delete knowledge edge failed: ${response.status}`)
   }
   return response.json()
 }

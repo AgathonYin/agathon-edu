@@ -68,6 +68,38 @@ class KnowledgePointResponse(BaseModel):
     description: str
 
 
+class CourseWeekPayload(BaseModel):
+    id: int
+    module: str
+    mode: str
+    title: str
+    summary: str
+    route: str | None = None
+    status: Literal["ready", "planned"] = "planned"
+
+
+class KnowledgePointPayload(BaseModel):
+    id: str
+    title: str
+    module: str
+    week: int
+    tags: list[str] = []
+    mastery: int = Field(default=0, ge=0, le=100)
+    description: str
+
+
+class KnowledgeEdgePayload(BaseModel):
+    source_id: str
+    target_id: str
+    label: str | None = None
+
+
+class CourseContentPayload(BaseModel):
+    weeks: list[CourseWeekPayload] = []
+    knowledge_points: list[KnowledgePointPayload] = []
+    knowledge_edges: list[KnowledgeEdgePayload] = []
+
+
 app = FastAPI(title="Agathon Edu API")
 db_pool: asyncpg.Pool | None = None
 
@@ -123,6 +155,8 @@ MEMORY_EXERCISES: list[dict[str, Any]] = [
     }
 ]
 MEMORY_SUBMISSIONS: list[dict[str, Any]] = []
+MEMORY_WEEKS: list[dict[str, Any]] = []
+MEMORY_EDGES: list[dict[str, Any]] = []
 
 
 @app.on_event("startup")
@@ -135,6 +169,7 @@ async def startup() -> None:
     for _ in range(20):
         try:
             db_pool = await asyncpg.create_pool(database_url, min_size=1, max_size=5)
+            await ensure_schema()
             return
         except Exception:
             await asyncio.sleep(1)
@@ -152,6 +187,133 @@ async def health():
     return {"ok": True, "database": db_pool is not None, "provider": os.getenv("AI_PROVIDER", "mock")}
 
 
+async def ensure_schema() -> None:
+    if not db_pool:
+        return
+    await db_pool.execute(
+        """
+        alter table knowledge_points
+        add column if not exists mastery int not null default 0 check (mastery >= 0 and mastery <= 100);
+
+        create table if not exists course_weeks (
+          id int primary key,
+          module text not null,
+          mode text not null,
+          title text not null,
+          summary text not null,
+          route text,
+          status text not null default 'planned' check (status in ('ready', 'planned')),
+          created_at timestamptz not null default now(),
+          updated_at timestamptz not null default now()
+        );
+
+        create table if not exists knowledge_edges (
+          id uuid primary key default gen_random_uuid(),
+          source_id text not null references knowledge_points(id) on delete cascade,
+          target_id text not null references knowledge_points(id) on delete cascade,
+          label text,
+          created_at timestamptz not null default now(),
+          unique (source_id, target_id)
+        );
+
+        create index if not exists idx_course_weeks_status on course_weeks(status);
+        create index if not exists idx_knowledge_edges_source on knowledge_edges(source_id);
+        create index if not exists idx_knowledge_edges_target on knowledge_edges(target_id);
+        """
+    )
+
+
+@app.get("/api/content")
+async def content():
+    if not db_pool:
+        return {"weeks": MEMORY_WEEKS, "knowledge_points": MEMORY_KNOWLEDGE, "knowledge_edges": MEMORY_EDGES}
+
+    weeks = await db_pool.fetch(
+        """
+        select id, module, mode, title, summary, route, status
+        from course_weeks
+        order by id
+        """
+    )
+    points = await db_pool.fetch(
+        """
+        select id, title, module, week, tags, mastery, description
+        from knowledge_points
+        order by week, module, title
+        """
+    )
+    edges = await db_pool.fetch(
+        """
+        select source_id, target_id, label
+        from knowledge_edges
+        order by source_id, target_id
+        """
+    )
+    return {
+        "weeks": [serialize_record(row) for row in weeks],
+        "knowledge_points": [serialize_record(row) for row in points],
+        "knowledge_edges": [serialize_record(row) for row in edges],
+    }
+
+
+@app.post("/api/content/import")
+async def import_content(payload: CourseContentPayload):
+    if not db_pool:
+        MEMORY_WEEKS[:] = [item.model_dump() for item in payload.weeks]
+        MEMORY_KNOWLEDGE[:] = [item.model_dump() for item in payload.knowledge_points]
+        MEMORY_EDGES[:] = [item.model_dump() for item in payload.knowledge_edges]
+        return {"ok": True, "weeks": len(MEMORY_WEEKS), "knowledge_points": len(MEMORY_KNOWLEDGE), "knowledge_edges": len(MEMORY_EDGES)}
+
+    async with db_pool.acquire() as conn:
+        async with conn.transaction():
+            for item in payload.weeks:
+                await upsert_course_week(conn, item)
+            for item in payload.knowledge_points:
+                await upsert_knowledge_point(conn, item)
+            for item in payload.knowledge_edges:
+                await upsert_knowledge_edge(conn, item)
+    return {"ok": True, "weeks": len(payload.weeks), "knowledge_points": len(payload.knowledge_points), "knowledge_edges": len(payload.knowledge_edges)}
+
+
+@app.post("/api/course-weeks")
+async def save_course_week(payload: CourseWeekPayload):
+    if not db_pool:
+        replace_memory(MEMORY_WEEKS, payload.model_dump(), "id")
+        return payload
+    async with db_pool.acquire() as conn:
+        row = await upsert_course_week(conn, payload)
+    return serialize_record(row)
+
+
+@app.post("/api/knowledge-points", response_model=KnowledgePointResponse)
+async def save_knowledge_point(payload: KnowledgePointPayload):
+    if not db_pool:
+        replace_memory(MEMORY_KNOWLEDGE, payload.model_dump(), "id")
+        return payload
+    async with db_pool.acquire() as conn:
+        row = await upsert_knowledge_point(conn, payload)
+    return serialize_record(row)
+
+
+@app.post("/api/knowledge-edges")
+async def save_knowledge_edge(payload: KnowledgeEdgePayload):
+    if not db_pool:
+        replace_memory(MEMORY_EDGES, payload.model_dump(), "source_id", "target_id")
+        return payload
+    async with db_pool.acquire() as conn:
+        row = await upsert_knowledge_edge(conn, payload)
+    return serialize_record(row)
+
+
+@app.delete("/api/knowledge-edges/{source_id}/{target_id}")
+async def delete_knowledge_edge(source_id: str, target_id: str):
+    if not db_pool:
+        MEMORY_EDGES[:] = [item for item in MEMORY_EDGES if not (item.get("source_id") == source_id and item.get("target_id") == target_id)]
+        return {"ok": True}
+    await db_pool.execute("delete from knowledge_edges where source_id = $1 and target_id = $2", source_id, target_id)
+    return {"ok": True}
+
+
 @app.get("/api/knowledge-points", response_model=list[KnowledgePointResponse])
 async def knowledge_points():
     if not db_pool:
@@ -159,7 +321,7 @@ async def knowledge_points():
 
     rows = await db_pool.fetch(
         """
-        select id, title, module, week, tags, description
+        select id, title, module, week, tags, mastery, description
         from knowledge_points
         order by week, module, title
         """
@@ -167,7 +329,7 @@ async def knowledge_points():
     if not rows:
         return MEMORY_KNOWLEDGE
 
-    return [{**dict(row), "mastery": 0} for row in rows]
+    return [serialize_record(row) for row in rows]
 
 
 @app.get("/api/exercises", response_model=list[ExerciseResponse])
@@ -433,3 +595,71 @@ def memory_teacher_summary() -> dict[str, Any]:
         ],
         "recent_submissions": recent,
     }
+
+
+async def upsert_course_week(conn: asyncpg.Connection, item: CourseWeekPayload):
+    return await conn.fetchrow(
+        """
+        insert into course_weeks (id, module, mode, title, summary, route, status)
+        values ($1, $2, $3, $4, $5, $6, $7)
+        on conflict (id) do update set
+          module = excluded.module,
+          mode = excluded.mode,
+          title = excluded.title,
+          summary = excluded.summary,
+          route = excluded.route,
+          status = excluded.status,
+          updated_at = now()
+        returning id, module, mode, title, summary, route, status
+        """,
+        item.id,
+        item.module,
+        item.mode,
+        item.title,
+        item.summary,
+        item.route,
+        item.status,
+    )
+
+
+async def upsert_knowledge_point(conn: asyncpg.Connection, item: KnowledgePointPayload):
+    return await conn.fetchrow(
+        """
+        insert into knowledge_points (id, title, module, week, tags, mastery, description)
+        values ($1, $2, $3, $4, $5, $6, $7)
+        on conflict (id) do update set
+          title = excluded.title,
+          module = excluded.module,
+          week = excluded.week,
+          tags = excluded.tags,
+          mastery = excluded.mastery,
+          description = excluded.description
+        returning id, title, module, week, tags, mastery, description
+        """,
+        item.id,
+        item.title,
+        item.module,
+        item.week,
+        item.tags,
+        item.mastery,
+        item.description,
+    )
+
+
+async def upsert_knowledge_edge(conn: asyncpg.Connection, item: KnowledgeEdgePayload):
+    return await conn.fetchrow(
+        """
+        insert into knowledge_edges (source_id, target_id, label)
+        values ($1, $2, $3)
+        on conflict (source_id, target_id) do update set label = excluded.label
+        returning source_id, target_id, label
+        """,
+        item.source_id,
+        item.target_id,
+        item.label,
+    )
+
+
+def replace_memory(items: list[dict[str, Any]], item: dict[str, Any], *keys: str) -> None:
+    items[:] = [existing for existing in items if not all(existing.get(key) == item.get(key) for key in keys)]
+    items.append(item)
