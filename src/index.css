@@ -2,16 +2,16 @@
 
 :root {
   --ink: #17202c;
-  --muted: #627083;
-  --paper: #f7f1e6;
-  --paper-2: #fffaf1;
+  --muted: #657386;
+  --paper: #f6f8fb;
+  --paper-2: #ffffff;
   --navy: #17213a;
   --navy-2: #0f3151;
-  --gold: #d6a84f;
+  --gold: #d5a642;
   --red: #9f4146;
-  --teal: #2c6f73;
-  --line: rgba(23, 32, 44, 0.12);
-  --shadow: 0 18px 45px rgba(23, 32, 44, 0.12);
+  --teal: #28777a;
+  --line: rgba(23, 32, 44, 0.1);
+  --shadow: 0 10px 28px rgba(23, 32, 44, 0.08);
   color: var(--ink);
   background: var(--paper);
   font-family: 'Noto Sans SC', 'Noto Sans JP', system-ui, sans-serif;
@@ -27,9 +27,7 @@
 body {
   margin: 0;
   min-width: 320px;
-  background:
-    linear-gradient(180deg, rgba(255, 250, 241, 0.95), rgba(247, 241, 230, 1)),
-    repeating-linear-gradient(90deg, transparent, transparent 34px, rgba(23, 32, 44, 0.018) 35px);
+  background: var(--paper);
 }
 
 button,
@@ -53,8 +51,8 @@ button {
   align-items: center;
   justify-content: space-between;
   gap: 20px;
-  padding: 14px clamp(18px, 4vw, 54px);
-  background: rgba(255, 250, 241, 0.88);
+  padding: 12px clamp(18px, 4vw, 54px);
+  background: rgba(255, 255, 255, 0.92);
   border-bottom: 1px solid var(--line);
   backdrop-filter: blur(16px);
 }
@@ -110,7 +108,7 @@ button {
   padding: 0 13px;
   border-radius: 6px;
   color: var(--ink);
-  background: rgba(255, 255, 255, 0.62);
+  background: white;
   border: 1px solid var(--line);
 }
 
@@ -119,7 +117,125 @@ button {
 .lesson-view {
   width: min(1440px, 100%);
   margin: 0 auto;
-  padding: clamp(18px, 4vw, 54px);
+  padding: clamp(18px, 3vw, 42px);
+}
+
+.dashboard-top {
+  display: grid;
+  grid-template-columns: minmax(0, 1.5fr) minmax(340px, 0.7fr);
+  gap: 18px;
+  align-items: stretch;
+}
+
+.dashboard-intro,
+.today-card {
+  padding: clamp(22px, 4vw, 38px);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--paper-2);
+  box-shadow: var(--shadow);
+}
+
+.dashboard-intro {
+  display: grid;
+  align-content: center;
+}
+
+.dashboard-intro h1 {
+  color: var(--ink);
+  font-size: clamp(36px, 5vw, 64px);
+  line-height: 1.05;
+}
+
+.dashboard-intro p:not(.eyebrow) {
+  max-width: 680px;
+  margin: 16px 0 0;
+  color: var(--muted);
+  font-size: 17px;
+  line-height: 1.8;
+}
+
+.today-card {
+  display: grid;
+  gap: 10px;
+}
+
+.today-card .panel-top {
+  margin-bottom: 4px;
+  color: var(--ink);
+}
+
+.today-card button {
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr);
+  gap: 4px 10px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--ink);
+  background: #fbfcfd;
+  text-align: left;
+}
+
+.today-card button span {
+  grid-row: span 2;
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  border-radius: 8px;
+  color: white;
+  background: var(--teal);
+  font-weight: 800;
+}
+
+.today-card button strong {
+  font-size: 15px;
+}
+
+.today-card button small {
+  color: var(--muted);
+}
+
+.quick-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.quick-card {
+  min-height: 156px;
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--ink);
+  background: var(--paper-2);
+  box-shadow: 0 5px 16px rgba(23, 32, 44, 0.04);
+  text-align: left;
+}
+
+.quick-card svg {
+  display: block;
+  margin-bottom: 18px;
+  color: var(--teal);
+}
+
+.quick-card strong {
+  display: block;
+  font-size: 18px;
+}
+
+.quick-card p {
+  margin: 8px 0 0;
+  color: var(--muted);
+  line-height: 1.65;
+}
+
+.course-summary {
+  display: grid;
+  width: min(420px, 100%);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
 }
 
 .hero-band {
@@ -155,10 +271,15 @@ h3 {
 }
 
 .hero-copy h1,
-.dashboard-header h1,
 .lesson-hero h1 {
   font-size: clamp(38px, 5vw, 74px);
   line-height: 1.02;
+  font-weight: 900;
+}
+
+.dashboard-header h1 {
+  font-size: clamp(30px, 3.6vw, 48px);
+  line-height: 1.12;
   font-weight: 900;
 }
 
@@ -186,8 +307,8 @@ h3 {
 }
 
 .primary-btn {
-  color: #17202c;
-  background: var(--gold);
+  color: white;
+  background: var(--teal);
 }
 
 .secondary-btn {
@@ -219,10 +340,10 @@ h3 {
 }
 
 .metric {
-  padding: 16px;
+  padding: 14px;
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.1);
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(40, 119, 122, 0.08);
+  border: 1px solid rgba(40, 119, 122, 0.1);
 }
 
 .stat-strip .metric {
@@ -232,7 +353,7 @@ h3 {
 
 .metric strong {
   display: block;
-  font-size: clamp(24px, 4vw, 42px);
+  font-size: clamp(22px, 3vw, 34px);
   line-height: 1;
   font-family: 'Noto Serif SC', serif;
 }
@@ -246,7 +367,7 @@ h3 {
 }
 
 .section-block {
-  margin-top: 44px;
+  margin-top: 28px;
 }
 
 .section-heading {
@@ -258,7 +379,7 @@ h3 {
 }
 
 .section-heading h2 {
-  font-size: clamp(28px, 4vw, 44px);
+  font-size: clamp(24px, 3vw, 34px);
 }
 
 .section-heading.compact {
@@ -293,8 +414,9 @@ h3 {
 }
 
 .week-card {
-  min-height: 194px;
-  padding: 18px;
+  min-height: 174px;
+  padding: 16px;
+  box-shadow: 0 4px 14px rgba(23, 32, 44, 0.035);
 }
 
 .feature-card {
@@ -340,18 +462,18 @@ h3 {
 }
 
 .week-card.ready {
-  border-color: rgba(159, 65, 70, 0.34);
+  border-color: rgba(40, 119, 122, 0.28);
 }
 
 .week-number {
   display: inline-grid;
-  width: 34px;
-  height: 34px;
+  width: 30px;
+  height: 30px;
   place-items: center;
-  margin-bottom: 14px;
-  border-radius: 50%;
-  color: white;
-  background: var(--navy);
+  margin-bottom: 12px;
+  border-radius: 8px;
+  color: var(--teal);
+  background: rgba(40, 119, 122, 0.1);
   font-weight: 700;
 }
 
@@ -366,7 +488,7 @@ h3 {
 .week-card strong {
   display: block;
   margin: 6px 0 4px;
-  font-size: 18px;
+  font-size: 17px;
 }
 
 .week-card p {
@@ -380,7 +502,7 @@ h3 {
   align-items: center;
   gap: 3px;
   margin-top: 14px;
-  color: var(--red);
+  color: var(--teal);
   font-size: 13px;
   font-weight: 700;
 }
@@ -423,7 +545,7 @@ h3 {
   border: 1px solid var(--line);
   border-radius: 8px;
   background: var(--paper-2);
-  box-shadow: 0 10px 25px rgba(23, 32, 44, 0.06);
+  box-shadow: 0 6px 18px rgba(23, 32, 44, 0.045);
 }
 
 .content-pane,
@@ -1225,6 +1347,7 @@ textarea {
 
 @media (max-width: 1100px) {
   .hero-band,
+  .dashboard-top,
   .two-column,
   .ai-layout,
   .materials-layout,
@@ -1234,6 +1357,7 @@ textarea {
   }
 
   .week-grid,
+  .quick-grid,
   .teacher-grid,
   .feature-grid,
   .admin-grid {
@@ -1265,8 +1389,10 @@ textarea {
 
   .metric-grid,
   .stat-strip,
-    .week-grid,
-    .teacher-grid,
+  .course-summary,
+  .quick-grid,
+  .week-grid,
+  .teacher-grid,
   .feature-grid,
   .admin-grid,
   .form-grid {

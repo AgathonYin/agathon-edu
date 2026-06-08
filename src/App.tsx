@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
   ArrowLeft,
-  BarChart3,
   Brain,
   ChevronRight,
   ClipboardPen,
@@ -185,19 +184,19 @@ function TopNav({ setView }: { setView: (view: View) => void }) {
       <nav>
         <button onClick={() => setView('learn')}>
           <GraduationCap size={18} />
-          学生端
-        </button>
-        <button onClick={() => setView('teacher')}>
-          <LayoutDashboard size={18} />
-          教师端
+          学习
         </button>
         <button onClick={() => setView('ai')}>
           <WandSparkles size={18} />
-          AI 工作台
+          练习
         </button>
         <button onClick={() => setView('materials')}>
           <FileText size={18} />
           讲义库
+        </button>
+        <button onClick={() => setView('teacher')}>
+          <LayoutDashboard size={18} />
+          教师后台
         </button>
       </nav>
     </header>
@@ -219,63 +218,83 @@ function Screen({ children, className = '' }: { children: React.ReactNode; class
 }
 
 function HomeView({ setView, courseWeeks }: { setView: (view: View) => void; courseWeeks: CourseWeekPayload[] }) {
+  const readyWeeks = courseWeeks.filter((week) => week.status === 'ready')
+
   return (
     <Screen className="home-view">
-      <section className="hero-band">
-        <div className="hero-copy">
-          <p className="eyebrow">LINGUISTCRAFT · 在线课程</p>
-          <h1>日语笔译理论与实践</h1>
-          <p className="hero-text">
-            面向本科三年级课程的自有教学平台：课程讲义、知识图谱、AI 陪练、自动生成练习与教师学情管理统一在一个应用内。
+      <section className="dashboard-top">
+        <div className="dashboard-intro">
+          <p className="eyebrow">日语笔译理论与实践</p>
+          <h1>学习中心</h1>
+          <p>
+            今天从一个清楚的任务开始：看讲义、做翻译、拿到反馈，再把薄弱知识点补上。
           </p>
-          <div className="hero-actions">
-            <button className="primary-btn" onClick={() => setView('learn')}>
-              <PlayCircle size={18} />
-              进入学生练习中心
-            </button>
-            <button className="secondary-btn" onClick={() => setView('teacher')}>
-              <BarChart3 size={18} />
-              查看教师后台
-            </button>
-          </div>
         </div>
-        <div className="hero-panel">
+        <div className="today-card">
           <div className="panel-top">
-            <span>AI 迁移版 MVP</span>
+            <span>今日建议</span>
             <Sparkles size={18} />
           </div>
-          <div className="metric-grid">
-            <Metric value="16" label="周课程" />
-            <Metric value="43+" label="知识点" />
-            <Metric value="4" label="AI 功能" />
-            <Metric value="3" label="角色端" />
-          </div>
+          <button onClick={() => setView('materials')}>
+            <span>01</span>
+            <strong>阅读 1 份讲义</strong>
+            <small>从课程材料进入本周主题</small>
+          </button>
+          <button onClick={() => setView('ai')}>
+            <span>02</span>
+            <strong>完成 1 次 AI 陪练</strong>
+            <small>提交译文并获得可读反馈</small>
+          </button>
+          <button onClick={() => setView('learn')}>
+            <span>03</span>
+            <strong>复习 1 个知识点</strong>
+            <small>用知识图谱补齐概念关系</small>
+          </button>
         </div>
       </section>
 
       <section className="section-block">
         <div className="section-heading">
           <div>
-            <p className="eyebrow">Functional Modules</p>
-            <h2>功能模块</h2>
+            <p className="eyebrow">Quick Start</p>
+            <h2>常用入口</h2>
           </div>
         </div>
-        <div className="feature-grid">
-          {featurePages.map((feature) => (
-            <button className="feature-card" key={feature.slug} onClick={() => setView(feature.slug)}>
-              <span>{feature.badge}</span>
-              <strong>{feature.title}</strong>
-              <p>{feature.subtitle}</p>
-              <em>进入模块 <ChevronRight size={15} /></em>
-            </button>
-          ))}
+        <div className="quick-grid">
+          <button className="quick-card" onClick={() => setView('learn')}>
+            <GraduationCap size={22} />
+            <strong>学习仪表盘</strong>
+            <p>查看知识图谱、学习记录和徽章。</p>
+          </button>
+          <button className="quick-card" onClick={() => setView('materials')}>
+            <FileText size={22} />
+            <strong>讲义库</strong>
+            <p>阅读已整理的 26 份课程讲义。</p>
+          </button>
+          <button className="quick-card" onClick={() => setView('ai')}>
+            <WandSparkles size={22} />
+            <strong>AI 练习</strong>
+            <p>拆分题目与作答，生成点评和评分量表。</p>
+          </button>
+          <button className="quick-card" onClick={() => setView('game')}>
+            <PlayCircle size={22} />
+            <strong>专项模块</strong>
+            <p>进入游戏本地化等案例训练。</p>
+          </button>
         </div>
       </section>
 
       <section className="section-block">
         <div className="section-heading">
-          <p className="eyebrow">Course Map</p>
-          <h2>课程大纲</h2>
+          <div>
+            <p className="eyebrow">Course Map</p>
+            <h2>课程大纲</h2>
+          </div>
+          <div className="course-summary">
+            <Metric value="16" label="周课程" />
+            <Metric value={String(readyWeeks.length)} label="可进入模块" />
+            <Metric value="26" label="讲义材料" />
+          </div>
         </div>
         <div className="week-grid">
           {courseWeeks.map((week) => (
