@@ -982,8 +982,8 @@ function TeacherCard({ icon, title, value, text }: { icon: React.ReactNode; titl
 }
 
 function AiWorkbench({ setView, currentUser }: { setView: (view: View) => void; currentUser: UserProfile | null }) {
-  const [prompt, setPrompt] = useState('请将下列中文业务句子译为自然的日语商务邮件表达，并说明缓冲语处理。')
-  const [answer, setAnswer] = useState('请贵司于本月30日前支付尾款。\n\n本月30日までに代金の支払いをお願い申し上げます')
+  const [prompt, setPrompt] = useState('请将下列中文业务句子译为自然的日语商务邮件表达，并说明缓冲语处理。\n\n原文：请贵司于本月30日前支付尾款。')
+  const [answer, setAnswer] = useState('本月30日までに代金のお支払いをお願い申し上げます。')
   const [mode, setMode] = useState<AiMode>('review')
   const [feedback, setFeedback] = useState('这句话应转为日语商务邮件中的礼貌请求，可加入缓冲语并保留付款期限这一业务事实。')
   const [isLoading, setIsLoading] = useState(false)
@@ -1055,7 +1055,11 @@ function AiWorkbench({ setView, currentUser }: { setView: (view: View) => void; 
 
           <label className="practice-field answer-field">
             <span>学生作答</span>
-            <textarea value={answer} onChange={(event) => setAnswer(event.target.value)} />
+            <textarea
+              value={answer}
+              onChange={(event) => setAnswer(event.target.value)}
+              placeholder="这里只填写学生译文或答题内容，不要复制练习题原文。"
+            />
           </label>
 
           <div className="practice-actions">
